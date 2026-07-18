@@ -21,7 +21,9 @@ export class RegisterDto {
 
   @IsEmail()
   @MaxLength(255)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   email: string;
 
   @IsString()

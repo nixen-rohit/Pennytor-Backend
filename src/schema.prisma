@@ -1,0 +1,214 @@
+// =========================================================
+// Banking App — Auth Domain Schema (Phase 1)
+// =========================================================
+// Notes on hardening added beyond the original spec:
+// - users: failedLoginAttempts + lockedUntil for brute-force lockout
+// - refresh_tokens: revokedAt + replacedByTokenId for rotation-reuse detection
+// - otps: generalized (replaces email_verifications), scoped by `purpose`
+//         so a leaked OTP can't be replayed across flows
+// - audit_logs: metadata Json field for structured event details
+// - sessions: thin, human-readable wrapper over refresh_tokens so users
+//   can see/revoke individual devices ("log out this device")
+// =========================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// Enums
+// ---------------------------------------------------------
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+  SUSPENDED
+  DELETED
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  LOGIN_MFA // reserved for future step-up auth on sensitive actions
+}
+
+enum AuditAction {
+  REGISTER
+  EMAIL_VERIFIED
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  LOGOUT_ALL
+  TOKEN_REFRESHED
+  TOKEN_REUSE_DETECTED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  ACCOUNT_LOCKED
+  ACCOUNT_UNLOCKED
+}
+
+// ---------------------------------------------------------
+// Users
+// ---------------------------------------------------------
+
+model User {
+  id        String     @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String     @unique
+  passwordHash String
+
+  emailVerified Boolean    @default(false)
+  status        UserStatus @default(PENDING_VERIFICATION)
+
+  ownReferralCode String  @unique
+  referredBy      String?
+
+  // Brute-force protection
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  lastLoginAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consents      UserConsent[]
+  otps          Otp[]
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ---------------------------------------------------------
+// Consents (legal / marketing)
+// ---------------------------------------------------------
+
+model UserConsent {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  termsAccepted          Boolean   @default(false)
+  termsAcceptedAt         DateTime?
+  privacyPolicyAccepted   Boolean   @default(false)
+  privacyPolicyAcceptedAt DateTime?
+  marketingEmails         Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("user_consents")
+}
+
+// ---------------------------------------------------------
+// OTPs (generalized — replaces email_verifications)
+// Scoped by purpose so a code for one flow can't be replayed in another
+// ---------------------------------------------------------
+
+model Otp {
+  id      String     @id @default(uuid())
+  userId  String
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose OtpPurpose
+
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  maxAttempts Int    @default(5)
+
+  consumedAt DateTime? // set instead of hard-delete, keeps an audit trail
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose])
+  @@map("otps")
+}
+
+// ---------------------------------------------------------
+// Refresh tokens — rotation chain for reuse detection
+// ---------------------------------------------------------
+
+model RefreshToken {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  ipAddress String?
+  userAgent String?
+
+  // Rotation-reuse detection: if a token whose revokedAt is already set
+  // gets presented again, that's a strong theft signal — revoke the
+  // entire chain and force logout-all for the user.
+  revokedAt        DateTime?
+  replacedByTokenId String?  @unique
+  replacedByToken   RefreshToken?  @relation("TokenChain", fields: [replacedByTokenId], references: [id])
+  replacesToken     RefreshToken?  @relation("TokenChain")
+
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  sessionId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------
+// Sessions — human-readable wrapper for "log out this device"
+// ---------------------------------------------------------
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceLabel String? // e.g. derived from userAgent: "Chrome on Windows"
+  ipAddress   String?
+  userAgent   String?
+
+  lastActiveAt DateTime @default(now())
+  revokedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------
+// Audit logs
+// ---------------------------------------------------------
+
+model AuditLog {
+  id     String   @id @default(uuid())
+  userId String?
+  user   User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action    AuditAction
+  ipAddress String?
+  userAgent String?
+
+  // Structured details, e.g. { "reason": "bad_password", "attemptNumber": 3 }
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
