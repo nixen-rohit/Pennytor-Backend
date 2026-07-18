@@ -42,6 +42,7 @@ let UsersService = class UsersService {
                     passwordHash: params.passwordHash,
                     ownReferralCode: referralCode,
                     referredBy: params.referredBy,
+                    role: 'USER',
                 },
             });
             await tx.userConsent.create({

@@ -61,8 +61,8 @@ let AuthService = AuthService_1 = class AuthService {
                 otp,
             });
         }
-        catch {
-            this.logger.error(`Verification email failed to send for user ${user.id}`);
+        catch (error) {
+            this.logger.error(`Verification email failed to send for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
         }
         await this.auditService.log({
             userId: user.id,
@@ -89,6 +89,34 @@ let AuthService = AuthService_1 = class AuthService {
             userAgent: ctx.userAgent,
         });
         return { message: 'Email verified successfully.' };
+    }
+    async resendOtp(dto, ctx) {
+        const user = await this.usersService.findByEmail(dto.email);
+        if (!user || user.emailVerified) {
+            return {
+                message: 'If this email is registered and unverified, a new code has been sent.',
+            };
+        }
+        const otp = await this.otpService.generate(user.id, 'EMAIL_VERIFY');
+        try {
+            await this.mailService.sendVerificationEmail({
+                to: user.email,
+                firstName: user.firstName,
+                otp,
+            });
+        }
+        catch (error) {
+            this.logger.error(`Resend OTP email failed for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
+        }
+        await this.auditService.log({
+            userId: user.id,
+            action: 'OTP_RESENT',
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+        });
+        return {
+            message: 'If this email is registered and unverified, a new code has been sent.',
+        };
     }
 };
 exports.AuthService = AuthService;

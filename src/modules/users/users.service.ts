@@ -46,6 +46,7 @@ export class UsersService {
           passwordHash: params.passwordHash,
           ownReferralCode: referralCode,
           referredBy: params.referredBy,
+          role: 'USER', // never accept role from the client — see RegisterDto, it has no role field
         },
       });
 

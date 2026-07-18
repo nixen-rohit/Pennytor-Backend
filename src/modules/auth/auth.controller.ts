@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -36,6 +37,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify a newly created account via emailed OTP' })
   verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Resend email verification OTP' })
+  resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
+    return this.authService.resendOtp(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
