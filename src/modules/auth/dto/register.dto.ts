@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   Length,
@@ -38,6 +39,7 @@ export class RegisterDto {
   referralCode?: string;
 
   @IsBoolean()
+  @IsIn([true], { message: 'You must accept the terms and conditions to register' })
   acceptTerms: boolean;
 
   @IsOptional()

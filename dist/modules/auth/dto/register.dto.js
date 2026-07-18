@@ -50,6 +50,7 @@ __decorate([
 ], RegisterDto.prototype, "referralCode", void 0);
 __decorate([
     (0, class_validator_1.IsBoolean)(),
+    (0, class_validator_1.IsIn)([true], { message: 'You must accept the terms and conditions to register' }),
     __metadata("design:type", Boolean)
 ], RegisterDto.prototype, "acceptTerms", void 0);
 __decorate([

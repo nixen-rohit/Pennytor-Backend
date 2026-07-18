@@ -15,6 +15,11 @@ enum UserStatus {
   DELETED
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 enum OtpPurpose {
   EMAIL_VERIFY
   PASSWORD_RESET
@@ -25,6 +30,7 @@ enum AuditAction {
   REGISTER
   REGISTER_FAILED
   EMAIL_VERIFIED
+  OTP_RESENT
 }
 
 model User {
@@ -36,6 +42,7 @@ model User {
 
   emailVerified Boolean    @default(false)
   status        UserStatus @default(PENDING_VERIFICATION)
+  role          Role       @default(USER)
 
   ownReferralCode String  @unique
   referredBy      String?

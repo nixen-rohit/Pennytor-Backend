@@ -7,6 +7,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 
 interface RequestContext {
   ipAddress?: string;
@@ -72,11 +73,10 @@ export class AuthService {
         firstName: user.firstName,
         otp,
       });
-    } catch {
-      // Registration itself succeeded — don't fail the request over a flaky
-      // SMTP send. The user can request a resend. We do surface this in logs.
+    } catch (error) {
       this.logger.error(
-        `Verification email failed to send for user ${user.id}`,
+        `Verification email failed to send for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
 
@@ -113,5 +113,43 @@ export class AuthService {
     });
 
     return { message: 'Email verified successfully.' };
+  }
+
+  async resendOtp(dto: ResendOtpDto, ctx: RequestContext) {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (!user || user.emailVerified) {
+      return {
+        message:
+          'If this email is registered and unverified, a new code has been sent.',
+      };
+    }
+
+    const otp = await this.otpService.generate(user.id, 'EMAIL_VERIFY');
+
+    try {
+      await this.mailService.sendVerificationEmail({
+        to: user.email,
+        firstName: user.firstName,
+        otp,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Resend OTP email failed for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'OTP_RESENT',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    return {
+      message:
+        'If this email is registered and unverified, a new code has been sent.',
+    };
   }
 }
