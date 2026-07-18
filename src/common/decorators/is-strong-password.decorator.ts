@@ -1,8 +1,4 @@
-import {
-  registerDecorator,
-  ValidationOptions,
-  ValidationArguments,
-} from 'class-validator';
+import { registerDecorator, ValidationOptions } from 'class-validator';
 
 /**
  * Enforces: min 12 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
@@ -26,7 +22,7 @@ export function IsStrongPassword(validationOptions?: ValidationOptions) {
           if (!/[^A-Za-z0-9]/.test(value)) return false;
           return true;
         },
-        defaultMessage(_args: ValidationArguments) {
+        defaultMessage() {
           return 'Password must be at least 12 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
         },
       },
