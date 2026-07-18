@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+  SUSPENDED
+  DELETED
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  LOGIN_MFA
+}
+
+enum AuditAction {
+  REGISTER
+  REGISTER_FAILED
+  EMAIL_VERIFIED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  firstName    String
+  lastName     String
+  email        String     @unique
+  passwordHash String
+
+  emailVerified Boolean    @default(false)
+  status        UserStatus @default(PENDING_VERIFICATION)
+
+  ownReferralCode String  @unique
+  referredBy      String?
+
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consent   UserConsent?
+  otps      Otp[]
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model UserConsent {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  termsAccepted           Boolean   @default(false)
+  termsAcceptedAt         DateTime?
+  privacyPolicyAccepted   Boolean   @default(false)
+  privacyPolicyAcceptedAt DateTime?
+  marketingEmails         Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("user_consents")
+}
+
+model Otp {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose     OtpPurpose
+
+  otpHash     String
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  consumedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose])
+  @@map("otps")
+}
+
+model AuditLog {
+  id     String @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action    AuditAction
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
