@@ -72,6 +72,13 @@ export class UsersService {
     });
   }
 
+  updatePasswordHash(userId: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+  }
+
   /** Retries on the rare unique-constraint collision rather than trusting randomness alone. */
   private async generateUniqueReferralCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {

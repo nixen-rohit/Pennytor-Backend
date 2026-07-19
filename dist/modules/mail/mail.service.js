@@ -38,6 +38,20 @@ let MailService = MailService_1 = class MailService {
             html,
         });
     }
+    async sendPasswordResetEmail(params) {
+        const frontendUrl = this.config.get('FRONTEND_URL');
+        const resetLink = `${frontendUrl}/reset-password?token=${params.token}&email=${encodeURIComponent(params.email)}`;
+        const html = this.renderTemplate('reset-password', {
+            firstName: params.firstName,
+            resetLink,
+            expiryMinutes: 15,
+        });
+        await this.send({
+            to: params.to,
+            subject: 'Reset your Pennytor password',
+            html,
+        });
+    }
     async send(params) {
         try {
             const response = await fetch(BREVO_SEND_ENDPOINT, {

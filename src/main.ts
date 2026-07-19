@@ -69,9 +69,10 @@ async function bootstrap() {
   }
 
   const port = config.get<number>('PORT', 3001);
-  console.log(`http://localhost:${port}`);
+ 
   await app.listen(port);
   logger.log(`Pennytor backend running on port ${port}`);
+   logger.log(`http://localhost:${port}`);
 }
 
 bootstrap();

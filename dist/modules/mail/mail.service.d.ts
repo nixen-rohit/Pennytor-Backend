@@ -12,6 +12,12 @@ export declare class MailService {
         firstName: string;
         otp: string;
     }): Promise<void>;
+    sendPasswordResetEmail(params: {
+        to: string;
+        firstName: string;
+        token: string;
+        email: string;
+    }): Promise<void>;
     private send;
     private renderTemplate;
 }

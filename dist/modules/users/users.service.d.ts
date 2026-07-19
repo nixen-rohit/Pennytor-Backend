@@ -15,5 +15,6 @@ export declare class UsersService {
         marketingEmails: boolean;
     }): Promise<User>;
     markEmailVerified(userId: string): Promise<User>;
+    updatePasswordHash(userId: string, passwordHash: string): Promise<User>;
     private generateUniqueReferralCode;
 }

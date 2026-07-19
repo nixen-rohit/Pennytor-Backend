@@ -1,13 +1,22 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 interface RequestContext {
   ipAddress?: string;
@@ -24,6 +33,7 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly mailService: MailService,
     private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
     this.saltRounds = this.config.get<number>('BCRYPT_SALT_ROUNDS', 12);
@@ -151,5 +161,123 @@ export class AuthService {
       message:
         'If this email is registered and unverified, a new code has been sent.',
     };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto, ctx: RequestContext) {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (user && user.status === 'ACTIVE') {
+      // Invalidate any prior unconsumed reset tokens for this user —
+      // same pattern as OtpService.generate() to prevent stale tokens
+      // from remaining valid alongside a freshly issued one.
+      await this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      const rawToken = randomBytes(32).toString('hex');
+      const tokenHash = await bcrypt.hash(rawToken, this.saltRounds);
+
+      await this.prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() + 15 * 60_000), // 15 minutes
+        },
+      });
+
+      try {
+        await this.mailService.sendPasswordResetEmail({
+          to: user.email,
+          firstName: user.firstName,
+          token: rawToken,
+          email: user.email,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Password reset email failed to send for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+
+      await this.auditService.log({
+        userId: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+      });
+    } else {
+      // Log without userId when user not found — still useful for
+      // abuse-detection dashboards, but won't leak account existence.
+      await this.auditService.log({
+        action: 'PASSWORD_RESET_REQUESTED',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+      });
+    }
+
+    // Always return the same generic message regardless of whether the
+    // email exists — enumeration-safe (same pattern as register/resendOtp).
+    return {
+      message:
+        "If this email is registered, you'll receive a reset link shortly.",
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto, ctx: RequestContext) {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    // Any failure (no user, no token, expired, mismatch) returns the same
+    // generic error — never reveal which part failed (enumeration-safe).
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    const resetToken = await this.prisma.passwordResetToken.findFirst({
+      where: { userId: user.id, consumedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!resetToken) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    const tokenValid = await bcrypt.compare(dto.token, resetToken.tokenHash);
+
+    if (!tokenValid) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+
+    // Mark token consumed and update password in a single transaction —
+    // ensures we never update the password without consuming the token.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { consumedAt: new Date() },
+      });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+    });
+
+    // TODO: When login/sessions are built, revoke all refresh tokens for
+    // this user here — a password reset must kill every other active session,
+    // otherwise an attacker who already has a session survives the reset.
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'PASSWORD_RESET_COMPLETED',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    return { message: 'Password reset successful. You can now log in.' };
   }
 }

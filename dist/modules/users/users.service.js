@@ -64,6 +64,12 @@ let UsersService = class UsersService {
             data: { emailVerified: true, status: 'ACTIVE' },
         });
     }
+    updatePasswordHash(userId, passwordHash) {
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+    }
     async generateUniqueReferralCode() {
         for (let attempt = 0; attempt < 5; attempt++) {
             const code = (0, crypto_1.randomBytes)(4).toString('hex').toUpperCase();
