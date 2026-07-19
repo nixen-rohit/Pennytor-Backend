@@ -16,6 +16,8 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.setGlobalPrefix('api/v1');
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // strip properties not in the DTO

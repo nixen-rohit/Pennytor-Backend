@@ -13,7 +13,7 @@ function IsStrongPassword(validationOptions) {
                 validate(value) {
                     if (typeof value !== 'string')
                         return false;
-                    if (value.length < 12)
+                    if (value.length < 8)
                         return false;
                     if (!/[A-Z]/.test(value))
                         return false;
@@ -26,7 +26,7 @@ function IsStrongPassword(validationOptions) {
                     return true;
                 },
                 defaultMessage() {
-                    return 'Password must be at least 12 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
+                    return 'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
                 },
             },
         });
