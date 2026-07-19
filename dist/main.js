@@ -15,7 +15,7 @@ async function bootstrap() {
         origin: config.get('FRONTEND_URL'),
         credentials: true,
     });
-    app.setGlobalPrefix('api/v1');
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
@@ -25,11 +25,37 @@ async function bootstrap() {
     if (config.get('NODE_ENV') !== 'production') {
         const swaggerConfig = new swagger_1.DocumentBuilder()
             .setTitle('Pennytor API')
-            .setDescription('Pennytor backend API documentation')
+            .setDescription('Pennytor — Financial Investment Platform API\n\n' +
+            '## Overview\n' +
+            'This API powers the Pennytor financial investment platform. All endpoints are prefixed with `/api`.\n\n' +
+            '## Rate Limiting\n' +
+            'All endpoints are rate-limited. Specific limits are documented per endpoint.\n' +
+            'Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) are included in responses.\n\n' +
+            '## Error Responses\n' +
+            'All errors follow a standard shape:\n' +
+            '```json\n' +
+            '{\n' +
+            '  "statusCode": 400,\n' +
+            '  "path": "/api/auth/register",\n' +
+            '  "timestamp": "2025-01-01T00:00:00.000Z",\n' +
+            '  "message": "Validation failed"\n' +
+            '}\n' +
+            '```\n')
             .setVersion('1.0')
+            .addTag('auth', 'Authentication & registration endpoints')
+            .addBearerAuth({
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'Enter your JWT access token',
+        }, 'access-token')
             .build();
         const document = swagger_1.SwaggerModule.createDocument(app, swaggerConfig);
-        swagger_1.SwaggerModule.setup('docs', app, document);
+        swagger_1.SwaggerModule.setup('docs', app, document, {
+            swaggerOptions: {
+                persistAuthorization: true,
+            },
+        });
     }
     const port = config.get('PORT', 3001);
     console.log(`http://localhost:${port}`);

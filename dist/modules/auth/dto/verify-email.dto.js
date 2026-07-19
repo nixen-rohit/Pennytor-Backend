@@ -12,15 +12,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VerifyEmailDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+const swagger_1 = require("@nestjs/swagger");
 class VerifyEmailDto {
 }
 exports.VerifyEmailDto = VerifyEmailDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Email address used during registration',
+        example: 'john.doe@example.com',
+    }),
     (0, class_validator_1.IsEmail)(),
     (0, class_transformer_1.Transform)(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value),
     __metadata("design:type", String)
 ], VerifyEmailDto.prototype, "email", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({
+        description: '6-digit verification code sent to the email address',
+        example: '482901',
+        minLength: 6,
+        maxLength: 6,
+    }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.Length)(6, 6),
     __metadata("design:type", String)
