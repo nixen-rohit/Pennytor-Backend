@@ -15,6 +15,7 @@ async function bootstrap() {
         origin: config.get('FRONTEND_URL'),
         credentials: true,
     });
+    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,

@@ -1,7 +1,7 @@
 import { registerDecorator, ValidationOptions } from 'class-validator';
 
 /**
- * Enforces: min 12 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
+ * Enforces: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
  * Kept as a single named decorator so the policy lives in one place —
  * change it here, not at every DTO that needs a password field.
  */
@@ -15,7 +15,7 @@ export function IsStrongPassword(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: unknown) {
           if (typeof value !== 'string') return false;
-          if (value.length < 12) return false;
+          if (value.length < 8) return false;
           if (!/[A-Z]/.test(value)) return false;
           if (!/[a-z]/.test(value)) return false;
           if (!/[0-9]/.test(value)) return false;
@@ -23,7 +23,7 @@ export function IsStrongPassword(validationOptions?: ValidationOptions) {
           return true;
         },
         defaultMessage() {
-          return 'Password must be at least 12 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
+          return 'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
         },
       },
     });
