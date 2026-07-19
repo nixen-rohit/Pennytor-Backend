@@ -41,6 +41,29 @@ export class MailService {
     });
   }
 
+  async sendPasswordResetEmail(params: {
+    to: string;
+    firstName: string;
+    token: string;
+    email: string;
+  }): Promise<void> {
+    const frontendUrl = this.config.get<string>('FRONTEND_URL')!;
+    const resetLink =
+      `${frontendUrl}/reset-password?token=${params.token}&email=${encodeURIComponent(params.email)}`;
+
+    const html = this.renderTemplate('reset-password', {
+      firstName: params.firstName,
+      resetLink,
+      expiryMinutes: 15,
+    });
+
+    await this.send({
+      to: params.to,
+      subject: 'Reset your Pennytor password',
+      html,
+    });
+  }
+
   private async send(params: {
     to: string;
     subject: string;

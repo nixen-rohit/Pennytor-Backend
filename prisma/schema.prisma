@@ -31,6 +31,8 @@ enum AuditAction {
   REGISTER_FAILED
   EMAIL_VERIFIED
   OTP_RESENT
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
 }
 
 model User {
@@ -54,9 +56,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  consent   UserConsent?
-  otps      Otp[]
-  auditLogs AuditLog[]
+  consent               UserConsent?
+  otps                  Otp[]
+  passwordResetTokens   PasswordResetToken[]
+  auditLogs             AuditLog[]
 
   @@index([email])
   @@map("users")
@@ -94,6 +97,19 @@ model Otp {
 
   @@index([userId, purpose])
   @@map("otps")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model AuditLog {

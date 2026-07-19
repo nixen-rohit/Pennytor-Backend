@@ -18,6 +18,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -135,6 +137,82 @@ export class AuthController {
   })
   resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
     return this.authService.resendOtp(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Request a password reset link',
+    description:
+      'Send a password reset email if the address is registered and active. ' +
+      'Always returns the same generic response (enumeration-safe). ' +
+      'Rate limit: 3 requests per 60 seconds.',
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Generic success message (does not reveal whether the email exists)',
+    schema: {
+      example: {
+        message:
+          "If this email is registered, you'll receive a reset link shortly.",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many forgot-password requests',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Set a new password using a reset token',
+    description:
+      'Submit the token from the reset email along with the new password. ' +
+      'All failures return the same generic error (enumeration-safe). ' +
+      'Rate limit: 5 requests per 60 seconds.',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
+    schema: {
+      example: {
+        message: 'Password reset successful. You can now log in.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired reset link',
+    schema: {
+      example: {
+        statusCode: 400,
+        path: '/api/auth/reset-password',
+        timestamp: '2025-01-01T00:00:00.000Z',
+        message: 'Invalid or expired reset link',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many reset-password attempts',
+  })
+  resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.authService.resetPassword(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
