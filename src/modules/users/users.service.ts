@@ -5,7 +5,7 @@ import { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
@@ -94,13 +94,13 @@ export class UsersService {
     const data: Prisma.UserUpdateInput = {
       failedLoginAttempts: attempts,
     };
-    
+
     if (lockTimeMinutes) {
       const lockUntil = new Date();
       lockUntil.setMinutes(lockUntil.getMinutes() + lockTimeMinutes);
       data.lockedUntil = lockUntil;
     }
-    
+
     return this.prisma.user.update({
       where: { id: userId },
       data,

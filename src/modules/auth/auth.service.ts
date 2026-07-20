@@ -151,9 +151,9 @@ export class AuthService {
     if (!isPasswordValid) {
       const attempts = (user.failedLoginAttempts || 0) + 1;
       const lockTimeMinutes = attempts >= 5 ? 15 : undefined; // Lock for 15 mins after 5 attempts
-      
+
       await this.usersService.recordFailedLogin(user.id, attempts, lockTimeMinutes);
-      
+
       await this.auditService.log({
         userId: user.id,
         action: 'LOGIN_FAILED',

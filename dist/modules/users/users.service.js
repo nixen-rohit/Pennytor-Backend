@@ -64,6 +64,12 @@ let UsersService = class UsersService {
             data: { emailVerified: true, status: 'ACTIVE' },
         });
     }
+    updatePasswordHash(userId, passwordHash) {
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+    }
     recordSuccessfulLogin(userId) {
         return this.prisma.user.update({
             where: { id: userId },

@@ -25,7 +25,7 @@ export declare class AuthService {
     private readonly jwtService;
     private readonly logger;
     private readonly saltRounds;
-    constructor(usersService: UsersService, otpService: OtpService, mailService: MailService, auditService: AuditService, prisma: PrismaService, config: ConfigService);
+    constructor(usersService: UsersService, otpService: OtpService, mailService: MailService, auditService: AuditService, prisma: PrismaService, config: ConfigService, jwtService: JwtService);
     register(dto: RegisterDto, ctx: RequestContext): Promise<{
         message: string;
         userId: string;
@@ -56,4 +56,4 @@ export declare class AuthService {
         message: string;
     }>;
 }
-export { };
+export {};
