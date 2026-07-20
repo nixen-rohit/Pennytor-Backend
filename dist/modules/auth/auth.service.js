@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const jwt_1 = require("@nestjs/jwt");
 const bcrypt = require("bcrypt");
 const crypto_1 = require("crypto");
 const users_service_1 = require("../users/users.service");
@@ -21,13 +22,14 @@ const mail_service_1 = require("../mail/mail.service");
 const audit_service_1 = require("../audit/audit.service");
 const prisma_service_1 = require("../../database/prisma.service");
 let AuthService = AuthService_1 = class AuthService {
-    constructor(usersService, otpService, mailService, auditService, prisma, config) {
+    constructor(usersService, otpService, mailService, auditService, prisma, config, jwtService) {
         this.usersService = usersService;
         this.otpService = otpService;
         this.mailService = mailService;
         this.auditService = auditService;
         this.prisma = prisma;
         this.config = config;
+        this.jwtService = jwtService;
         this.logger = new common_1.Logger(AuthService_1.name);
         this.saltRounds = this.config.get('BCRYPT_SALT_ROUNDS', 12);
     }
@@ -92,6 +94,60 @@ let AuthService = AuthService_1 = class AuthService {
             userAgent: ctx.userAgent,
         });
         return { message: 'Email verified successfully.' };
+    }
+    async login(dto, ctx) {
+        const user = await this.usersService.findByEmail(dto.email);
+        if (!user) {
+            await this.auditService.log({
+                action: 'LOGIN_FAILED',
+                ipAddress: ctx.ipAddress,
+                userAgent: ctx.userAgent,
+                metadata: { reason: 'user_not_found', email: dto.email },
+            });
+            throw new common_1.UnauthorizedException('Invalid email or password');
+        }
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+            throw new common_1.UnauthorizedException('Account is locked. Please try again later.');
+        }
+        const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+        if (!isPasswordValid) {
+            const attempts = (user.failedLoginAttempts || 0) + 1;
+            const lockTimeMinutes = attempts >= 5 ? 15 : undefined;
+            await this.usersService.recordFailedLogin(user.id, attempts, lockTimeMinutes);
+            await this.auditService.log({
+                userId: user.id,
+                action: 'LOGIN_FAILED',
+                ipAddress: ctx.ipAddress,
+                userAgent: ctx.userAgent,
+                metadata: { reason: 'invalid_password', attempts },
+            });
+            throw new common_1.UnauthorizedException('Invalid email or password');
+        }
+        if (!user.emailVerified) {
+            throw new common_1.UnauthorizedException('Please verify your email address before logging in.');
+        }
+        await this.usersService.recordSuccessfulLogin(user.id);
+        await this.auditService.log({
+            userId: user.id,
+            action: 'LOGIN_SUCCESS',
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+        });
+        const payload = { sub: user.id, email: user.email, role: user.role };
+        const accessToken = await this.jwtService.signAsync(payload);
+        return {
+            message: 'Login successful',
+            data: {
+                accessToken,
+                user: {
+                    id: user.id,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    email: user.email,
+                    role: user.role,
+                },
+            },
+        };
     }
     async resendOtp(dto, ctx) {
         const user = await this.usersService.findByEmail(dto.email);
@@ -213,6 +269,7 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
         mail_service_1.MailService,
         audit_service_1.AuditService,
         prisma_service_1.PrismaService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        jwt_1.JwtService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

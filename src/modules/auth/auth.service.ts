@@ -3,8 +3,10 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
@@ -13,6 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -35,6 +38,7 @@ export class AuthService {
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly jwtService: JwtService,
   ) {
     this.saltRounds = this.config.get<number>('BCRYPT_SALT_ROUNDS', 12);
   }
@@ -123,6 +127,74 @@ export class AuthService {
     });
 
     return { message: 'Email verified successfully.' };
+  }
+
+  async login(dto: LoginDto, ctx: RequestContext) {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (!user) {
+      await this.auditService.log({
+        action: 'LOGIN_FAILED',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'user_not_found', email: dto.email },
+      });
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException('Account is locked. Please try again later.');
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      const lockTimeMinutes = attempts >= 5 ? 15 : undefined; // Lock for 15 mins after 5 attempts
+
+      await this.usersService.recordFailedLogin(user.id, attempts, lockTimeMinutes);
+
+      await this.auditService.log({
+        userId: user.id,
+        action: 'LOGIN_FAILED',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'invalid_password', attempts },
+      });
+
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Please verify your email address before logging in.');
+    }
+
+    // Success flow
+    await this.usersService.recordSuccessfulLogin(user.id);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'LOGIN_SUCCESS',
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return {
+      message: 'Login successful',
+      data: {
+        accessToken,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+        },
+      },
+    };
   }
 
   async resendOtp(dto: ResendOtpDto, ctx: RequestContext) {

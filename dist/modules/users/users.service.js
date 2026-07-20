@@ -70,6 +70,30 @@ let UsersService = class UsersService {
             data: { passwordHash },
         });
     }
+    recordSuccessfulLogin(userId) {
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                lastLoginAt: new Date(),
+                failedLoginAttempts: 0,
+                lockedUntil: null,
+            },
+        });
+    }
+    recordFailedLogin(userId, attempts, lockTimeMinutes) {
+        const data = {
+            failedLoginAttempts: attempts,
+        };
+        if (lockTimeMinutes) {
+            const lockUntil = new Date();
+            lockUntil.setMinutes(lockUntil.getMinutes() + lockTimeMinutes);
+            data.lockedUntil = lockUntil;
+        }
+        return this.prisma.user.update({
+            where: { id: userId },
+            data,
+        });
+    }
     async generateUniqueReferralCode() {
         for (let attempt = 0; attempt < 5; attempt++) {
             const code = (0, crypto_1.randomBytes)(4).toString('hex').toUpperCase();

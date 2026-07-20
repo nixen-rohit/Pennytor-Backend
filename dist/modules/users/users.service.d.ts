@@ -16,5 +16,7 @@ export declare class UsersService {
     }): Promise<User>;
     markEmailVerified(userId: string): Promise<User>;
     updatePasswordHash(userId: string, passwordHash: string): Promise<User>;
+    recordSuccessfulLogin(userId: string): Promise<User>;
+    recordFailedLogin(userId: string, attempts: number, lockTimeMinutes?: number): Promise<User>;
     private generateUniqueReferralCode;
 }
