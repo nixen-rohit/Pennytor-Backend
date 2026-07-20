@@ -79,6 +79,34 @@ export class UsersService {
     });
   }
 
+  recordSuccessfulLogin(userId: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastLoginAt: new Date(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+  }
+
+  recordFailedLogin(userId: string, attempts: number, lockTimeMinutes?: number): Promise<User> {
+    const data: Prisma.UserUpdateInput = {
+      failedLoginAttempts: attempts,
+    };
+    
+    if (lockTimeMinutes) {
+      const lockUntil = new Date();
+      lockUntil.setMinutes(lockUntil.getMinutes() + lockTimeMinutes);
+      data.lockedUntil = lockUntil;
+    }
+    
+    return this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+  }
+
   /** Retries on the rare unique-constraint collision rather than trusting randomness alone. */
   private async generateUniqueReferralCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {

@@ -64,10 +64,28 @@ let UsersService = class UsersService {
             data: { emailVerified: true, status: 'ACTIVE' },
         });
     }
-    updatePasswordHash(userId, passwordHash) {
+    recordSuccessfulLogin(userId) {
         return this.prisma.user.update({
             where: { id: userId },
-            data: { passwordHash },
+            data: {
+                lastLoginAt: new Date(),
+                failedLoginAttempts: 0,
+                lockedUntil: null,
+            },
+        });
+    }
+    recordFailedLogin(userId, attempts, lockTimeMinutes) {
+        const data = {
+            failedLoginAttempts: attempts,
+        };
+        if (lockTimeMinutes) {
+            const lockUntil = new Date();
+            lockUntil.setMinutes(lockUntil.getMinutes() + lockTimeMinutes);
+            data.lockedUntil = lockUntil;
+        }
+        return this.prisma.user.update({
+            where: { id: userId },
+            data,
         });
     }
     async generateUniqueReferralCode() {

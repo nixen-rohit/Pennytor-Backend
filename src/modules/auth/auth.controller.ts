@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -64,6 +65,33 @@ export class AuthController {
   })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Log into an existing account',
+    description: 'Authenticate with email and password to receive an access token.',
+  })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid email or password / Unverified email / Locked account',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many login attempts',
+  })
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });

@@ -1,6 +1,7 @@
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -11,6 +12,19 @@ export declare class AuthController {
     register(dto: RegisterDto, req: Request): Promise<{
         message: string;
         userId: string;
+    }>;
+    login(dto: LoginDto, req: Request): Promise<{
+        message: string;
+        data: {
+            accessToken: string;
+            user: {
+                id: string;
+                firstName: string;
+                lastName: string;
+                email: string;
+                role: import(".prisma/client").$Enums.Role;
+            };
+        };
     }>;
     verifyEmail(dto: VerifyEmailDto, req: Request): Promise<{
         message: string;
