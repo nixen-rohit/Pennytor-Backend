@@ -528,7 +528,7 @@ Register ──> Verify Email (OTP) ──> Login ──> Access Token + Refresh
 
 ### Password Requirements
 
-- Minimum 12 characters
+- Minimum 8 characters
 - At least 1 uppercase letter
 - At least 1 lowercase letter
 - At least 1 digit
