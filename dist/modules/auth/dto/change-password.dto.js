@@ -27,9 +27,9 @@ __decorate([
 ], ChangePasswordDto.prototype, "currentPassword", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: 'New password — min 12 characters with mixed case, number, and special char',
-        example: 'N3wS3cureP@ssword!',
-        minLength: 12,
+        description: 'New password — min 8 characters with at least 1 uppercase, 1 lowercase, 1 digit, and 1 special character',
+        example: 'N3wS3cureP@ss!',
+        minLength: 8,
     }),
     (0, class_validator_1.IsString)(),
     (0, is_strong_password_decorator_1.IsStrongPassword)(),
