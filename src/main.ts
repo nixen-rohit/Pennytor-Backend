@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import * as cookieParser from 'cookie-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
@@ -11,6 +12,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   app.use(helmet());
+  app.use(cookieParser());
   app.enableCors({
     origin: config.get<string>('FRONTEND_URL'),
     credentials: true,
@@ -69,10 +71,10 @@ async function bootstrap() {
   }
 
   const port = config.get<number>('PORT', 3001);
- 
+
   await app.listen(port);
   logger.log(`Pennytor backend running on port ${port}`);
-   logger.log(`http://localhost:${port}`);
+  logger.log(`http://localhost:${port}`);
 }
 
 bootstrap();

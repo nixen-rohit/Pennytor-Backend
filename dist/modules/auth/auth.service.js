@@ -20,9 +20,10 @@ const users_service_1 = require("../users/users.service");
 const otp_service_1 = require("../otp/otp.service");
 const mail_service_1 = require("../mail/mail.service");
 const audit_service_1 = require("../audit/audit.service");
+const refresh_token_service_1 = require("./refresh-token.service");
 const prisma_service_1 = require("../../database/prisma.service");
 let AuthService = AuthService_1 = class AuthService {
-    constructor(usersService, otpService, mailService, auditService, prisma, config, jwtService) {
+    constructor(usersService, otpService, mailService, auditService, prisma, config, jwtService, refreshTokenService) {
         this.usersService = usersService;
         this.otpService = otpService;
         this.mailService = mailService;
@@ -30,8 +31,11 @@ let AuthService = AuthService_1 = class AuthService {
         this.prisma = prisma;
         this.config = config;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
         this.logger = new common_1.Logger(AuthService_1.name);
         this.saltRounds = this.config.get('BCRYPT_SALT_ROUNDS', 12);
+        this.accessExpiry = this.config.get('JWT_ACCESS_EXPIRY', '15m');
+        this.resetExpiryMinutes = this.config.get('PASSWORD_RESET_EXPIRY_MINUTES', 15);
     }
     async register(dto, ctx) {
         const existingUser = await this.usersService.findByEmail(dto.email);
@@ -133,12 +137,16 @@ let AuthService = AuthService_1 = class AuthService {
             ipAddress: ctx.ipAddress,
             userAgent: ctx.userAgent,
         });
-        const payload = { sub: user.id, email: user.email, role: user.role };
-        const accessToken = await this.jwtService.signAsync(payload);
+        const payload = { sub: user.id, role: user.role };
+        const accessToken = await this.jwtService.signAsync(payload, {
+            expiresIn: this.accessExpiry,
+        });
+        const refreshToken = await this.refreshTokenService.create(user.id, ctx);
         return {
             message: 'Login successful',
             data: {
                 accessToken,
+                refreshToken,
                 user: {
                     id: user.id,
                     firstName: user.firstName,
@@ -148,6 +156,38 @@ let AuthService = AuthService_1 = class AuthService {
                 },
             },
         };
+    }
+    async refresh(rawToken, ctx) {
+        const { rawToken: newRefreshToken, userId } = await this.refreshTokenService.validateAndRotate(rawToken, ctx);
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        const payload = { sub: user.id, role: user.role };
+        const accessToken = await this.jwtService.signAsync(payload, {
+            expiresIn: this.accessExpiry,
+        });
+        return { accessToken, refreshToken: newRefreshToken };
+    }
+    async logout(rawToken, all, userId, ctx) {
+        if (all) {
+            await this.refreshTokenService.revokeAllForUser(userId);
+            await this.auditService.log({
+                userId,
+                action: 'LOGOUT_ALL',
+                ipAddress: ctx.ipAddress,
+                userAgent: ctx.userAgent,
+            });
+            return { message: 'Logged out of all sessions.' };
+        }
+        await this.refreshTokenService.revoke(rawToken);
+        await this.auditService.log({
+            userId,
+            action: 'LOGOUT',
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+        });
+        return { message: 'Logged out successfully.' };
     }
     async resendOtp(dto, ctx) {
         const user = await this.usersService.findByEmail(dto.email);
@@ -190,7 +230,7 @@ let AuthService = AuthService_1 = class AuthService {
                 data: {
                     userId: user.id,
                     tokenHash,
-                    expiresAt: new Date(Date.now() + 15 * 60_000),
+                    expiresAt: new Date(Date.now() + this.resetExpiryMinutes * 60_000),
                 },
             });
             try {
@@ -251,6 +291,10 @@ let AuthService = AuthService_1 = class AuthService {
                 where: { id: user.id },
                 data: { passwordHash },
             });
+            await tx.refreshToken.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+            });
         });
         await this.auditService.log({
             userId: user.id,
@@ -259,6 +303,34 @@ let AuthService = AuthService_1 = class AuthService {
             userAgent: ctx.userAgent,
         });
         return { message: 'Password reset successful. You can now log in.' };
+    }
+    async changePassword(userId, dto, ctx) {
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+        if (!isPasswordValid) {
+            throw new common_1.BadRequestException('Current password is incorrect');
+        }
+        const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+        await this.prisma.$transaction(async (tx) => {
+            await tx.user.update({
+                where: { id: userId },
+                data: { passwordHash },
+            });
+            await tx.refreshToken.updateMany({
+                where: { userId, revokedAt: null },
+                data: { revokedAt: new Date() },
+            });
+        });
+        await this.auditService.log({
+            userId,
+            action: 'PASSWORD_RESET_COMPLETED',
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+        });
+        return { message: 'Password changed successfully. Please log in again.' };
     }
 };
 exports.AuthService = AuthService;
@@ -270,6 +342,7 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
         audit_service_1.AuditService,
         prisma_service_1.PrismaService,
         config_1.ConfigService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        refresh_token_service_1.RefreshTokenService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

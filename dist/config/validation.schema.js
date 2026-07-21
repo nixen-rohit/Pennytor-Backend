@@ -18,5 +18,9 @@ exports.validationSchema = Joi.object({
     MAIL_FROM_NAME: Joi.string().default('Pennytor'),
     THROTTLE_TTL_SECONDS: Joi.number().default(60),
     THROTTLE_LIMIT: Joi.number().default(10),
+    JWT_ACCESS_SECRET: Joi.string().required(),
+    JWT_ACCESS_EXPIRY: Joi.string().default('15m'),
+    JWT_REFRESH_EXPIRY_DAYS: Joi.number().default(30),
+    PASSWORD_RESET_EXPIRY_MINUTES: Joi.number().default(15),
 });
 //# sourceMappingURL=validation.schema.js.map
