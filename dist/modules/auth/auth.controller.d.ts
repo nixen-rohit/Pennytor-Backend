@@ -6,6 +6,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { LogoutDto } from './dto/logout.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -29,6 +32,20 @@ export declare class AuthController {
     verifyEmail(dto: VerifyEmailDto, req: Request): Promise<{
         message: string;
     }>;
+    refresh(_dto: RefreshDto, req: Request): Promise<{
+        statusCode: number;
+        message: string;
+        data?: undefined;
+    } | {
+        data: {
+            accessToken: string;
+        };
+        statusCode?: undefined;
+        message?: undefined;
+    }>;
+    logout(dto: LogoutDto, req: Request): Promise<{
+        message: string;
+    }>;
     resendOtp(dto: ResendOtpDto, req: Request): Promise<{
         message: string;
     }>;
@@ -36,6 +53,9 @@ export declare class AuthController {
         message: string;
     }>;
     resetPassword(dto: ResetPasswordDto, req: Request): Promise<{
+        message: string;
+    }>;
+    changePassword(dto: ChangePasswordDto, req: Request): Promise<{
         message: string;
     }>;
 }

@@ -4,6 +4,7 @@ const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const helmet_1 = require("helmet");
+const cookieParser = require("cookie-parser");
 const swagger_1 = require("@nestjs/swagger");
 const app_module_1 = require("./app.module");
 async function bootstrap() {
@@ -11,6 +12,7 @@ async function bootstrap() {
     const config = app.get(config_1.ConfigService);
     const logger = new common_1.Logger('Bootstrap');
     app.use((0, helmet_1.default)());
+    app.use(cookieParser());
     app.enableCors({
         origin: config.get('FRONTEND_URL'),
         credentials: true,

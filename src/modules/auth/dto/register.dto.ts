@@ -72,7 +72,9 @@ export class RegisterDto {
     example: true,
   })
   @IsBoolean()
-  @IsIn([true], { message: 'You must accept the terms and conditions to register' })
+  @IsIn([true], {
+    message: 'You must accept the terms and conditions to register',
+  })
   acceptTerms: boolean;
 
   @ApiPropertyOptional({

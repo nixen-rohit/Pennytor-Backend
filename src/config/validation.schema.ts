@@ -27,4 +27,14 @@ export const validationSchema = Joi.object({
 
   THROTTLE_TTL_SECONDS: Joi.number().default(60),
   THROTTLE_LIMIT: Joi.number().default(10),
+
+  // JWT access token — base64-encoded HS256 key, generated via openssl rand -base64 64
+  JWT_ACCESS_SECRET: Joi.string().required(),
+  JWT_ACCESS_EXPIRY: Joi.string().default('15m'),
+
+  // Refresh token lifetime in days (opaque random string, not a JWT)
+  JWT_REFRESH_EXPIRY_DAYS: Joi.number().default(30),
+
+  // Password reset token lifetime in minutes (opaque random string, not a JWT)
+  PASSWORD_RESET_EXPIRY_MINUTES: Joi.number().default(15),
 });

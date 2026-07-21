@@ -48,8 +48,7 @@ export class MailService {
     email: string;
   }): Promise<void> {
     const frontendUrl = this.config.get<string>('FRONTEND_URL')!;
-    const resetLink =
-      `${frontendUrl}/reset-password?token=${params.token}&email=${encodeURIComponent(params.email)}`;
+    const resetLink = `${frontendUrl}/reset-password?token=${params.token}&email=${encodeURIComponent(params.email)}`;
 
     const html = this.renderTemplate('reset-password', {
       firstName: params.firstName,
