@@ -33,7 +33,7 @@ const REFRESH_OPTIONS = {
   httpOnly: true,
   secure: true,
   sameSite: 'strict' as const,
-  path: '/api/auth/refresh',
+  path: '/api',
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
 
@@ -158,7 +158,7 @@ export class AuthController {
     );
 
     const response = req.res!;
-    response.clearCookie(REFRESH_COOKIE, { path: '/api/auth/refresh' });
+    response.clearCookie(REFRESH_COOKIE, { path: '/api' });
 
     return result;
   }

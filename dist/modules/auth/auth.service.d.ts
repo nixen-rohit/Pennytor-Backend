@@ -56,7 +56,7 @@ export declare class AuthService {
         accessToken: string;
         refreshToken: string;
     }>;
-    logout(rawToken: string, all: boolean, userId: string, ctx: RequestContext): Promise<{
+    logout(rawToken: string | undefined, all: boolean, userId: string, ctx: RequestContext): Promise<{
         message: string;
     }>;
     resendOtp(dto: ResendOtpDto, ctx: RequestContext): Promise<{
