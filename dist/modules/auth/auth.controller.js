@@ -32,7 +32,7 @@ const REFRESH_OPTIONS = {
     httpOnly: true,
     secure: true,
     sameSite: 'strict',
-    path: '/api/auth/refresh',
+    path: '/api',
     maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 let AuthController = class AuthController {
@@ -85,7 +85,7 @@ let AuthController = class AuthController {
         };
         const result = await this.authService.logout(rawToken, dto.all === true, user.id, ctx);
         const response = req.res;
-        response.clearCookie(REFRESH_COOKIE, { path: '/api/auth/refresh' });
+        response.clearCookie(REFRESH_COOKIE, { path: '/api' });
         return result;
     }
     resendOtp(dto, req) {
