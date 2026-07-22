@@ -459,7 +459,7 @@ export class AuthService {
 
     await this.auditService.log({
       userId,
-      action: 'PASSWORD_RESET_COMPLETED',
+      action: 'PASSWORD_CHANGED',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });

@@ -11,10 +11,15 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
   app.use(cookieParser());
   app.enableCors({
-    origin: config.get<string>('FRONTEND_URL'),
+    origin: config.get<string>('FRONTEND_URL', 'http://localhost:3000'),
     credentials: true,
   });
 
