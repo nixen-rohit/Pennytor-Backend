@@ -218,17 +218,21 @@ All routes are prefixed with `/api`. Auth routes are under `/api/auth/`.
 
 // Response 200
 {
-  "accessToken": "eyJhbGci...",
-  "user": {
-    "id": "uuid",
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john@example.com",
-    "role": "USER"
+  "message": "Login successful",
+  "data": {
+    "accessToken": "eyJhbGci...",
+    "user": {
+      "id": "uuid",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john@example.com",
+      "role": "USER"
+    }
   }
 }
 
-// Also sets HttpOnly cookie: refresh_token (30 days, path: /api/auth/refresh)
+// Also sets HttpOnly cookie: refresh_token (30 days, path: /api)
+// This cookie is sent on all /api/* routes
 ```
 
 #### POST /api/auth/verify-email
@@ -253,10 +257,12 @@ The refresh token is read from the `refresh_token` HttpOnly cookie (set during l
 ```json
 // Response 200
 {
-  "accessToken": "eyJhbGci..."
+  "data": {
+    "accessToken": "eyJhbGci..."
+  }
 }
 
-// Sets new refresh_token cookie (token rotation)
+// Sets new refresh_token cookie (token rotation, path: /api)
 ```
 
 #### POST /api/auth/logout
@@ -273,6 +279,10 @@ The refresh token is read from the `refresh_token` HttpOnly cookie (set during l
 }
 
 // Clears refresh_token cookie
+
+// Note: Logout with `all: false` reads the refresh_token cookie to revoke
+// the current session. If the cookie is unavailable (e.g. cleared manually),
+// it gracefully falls back to just clearing client state.
 ```
 
 #### POST /api/auth/resend-otp
@@ -377,7 +387,7 @@ All errors follow this shape:
 | `UserStatus` | `PENDING_VERIFICATION`, `ACTIVE`, `LOCKED`, `SUSPENDED`, `DELETED` |
 | `Role` | `USER`, `ADMIN` |
 | `OtpPurpose` | `EMAIL_VERIFY`, `PASSWORD_RESET`, `LOGIN_MFA` |
-| `AuditAction` | `REGISTER`, `REGISTER_FAILED`, `EMAIL_VERIFIED`, `OTP_RESENT`, `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `LOGOUT_ALL`, `TOKEN_REFRESHED`, `TOKEN_REUSE_DETECTED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED` |
+| `AuditAction` | `REGISTER`, `REGISTER_FAILED`, `EMAIL_VERIFIED`, `OTP_RESENT`, `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `LOGOUT_ALL`, `TOKEN_REFRESHED`, `TOKEN_REUSE_DETECTED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `PASSWORD_CHANGED`, `ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED` |
 
 ### Models
 
@@ -634,6 +644,12 @@ Defined in `tsconfig.json`:
 | `20260719181501_add_password_reset_tokens` | Jul 19, 2026 | Added `PasswordResetToken` table + new audit actions |
 
 ---
+
+## Changelog
+
+| Date | Change |
+|---|---|
+| Jul 22, 2026 | Added `PASSWORD_CHANGED` audit action. Changed refresh cookie path from `/api/auth/refresh` to `/api` so it's accessible on all API routes (fixes logout). Logout now gracefully handles missing cookie. |
 
 ## Future Work (Installed but Not Yet Active)
 

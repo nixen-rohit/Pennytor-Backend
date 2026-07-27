@@ -180,7 +180,9 @@ let AuthService = AuthService_1 = class AuthService {
             });
             return { message: 'Logged out of all sessions.' };
         }
-        await this.refreshTokenService.revoke(rawToken);
+        if (rawToken) {
+            await this.refreshTokenService.revoke(rawToken);
+        }
         await this.auditService.log({
             userId,
             action: 'LOGOUT',

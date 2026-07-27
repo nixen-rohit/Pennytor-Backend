@@ -239,7 +239,7 @@ export class AuthService {
   }
 
   async logout(
-    rawToken: string,
+    rawToken: string | undefined,
     all: boolean,
     userId: string,
     ctx: RequestContext,
@@ -257,7 +257,9 @@ export class AuthService {
       return { message: 'Logged out of all sessions.' };
     }
 
-    await this.refreshTokenService.revoke(rawToken);
+    if (rawToken) {
+      await this.refreshTokenService.revoke(rawToken);
+    }
 
     await this.auditService.log({
       userId,
