@@ -3,7 +3,7 @@ export declare class RegisterDto {
     lastName: string;
     email: string;
     password: string;
-    referralCode?: string;
+    referralCode: string;
     acceptTerms: boolean;
     marketingEmails?: boolean;
 }

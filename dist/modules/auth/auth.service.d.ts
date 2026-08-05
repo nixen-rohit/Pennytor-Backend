@@ -31,6 +31,9 @@ export declare class AuthService {
     private readonly accessExpiry;
     private readonly resetExpiryMinutes;
     constructor(usersService: UsersService, otpService: OtpService, mailService: MailService, auditService: AuditService, prisma: PrismaService, config: ConfigService, jwtService: JwtService, refreshTokenService: RefreshTokenService);
+    checkEmail(email: string): Promise<{
+        available: boolean;
+    }>;
     register(dto: RegisterDto, ctx: RequestContext): Promise<{
         message: string;
         userId: string;

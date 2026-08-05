@@ -45,6 +45,9 @@ let AuthController = class AuthController {
             userAgent: req.headers['user-agent'],
         });
     }
+    checkEmail(email) {
+        return this.authService.checkEmail(email);
+    }
     async login(dto, req) {
         const ctx = {
             ipAddress: req.ip,
@@ -129,6 +132,20 @@ __decorate([
     __metadata("design:paramtypes", [register_dto_1.RegisterDto, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "register", null);
+__decorate([
+    (0, common_1.Get)('check-email'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Check whether an email is already registered',
+        description: 'Returns { available: boolean }. Used by the register form to show email availability in real time.',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Email availability result' }),
+    __param(0, (0, common_1.Query)('email')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "checkEmail", null);
 __decorate([
     (0, common_1.Post)('login'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),

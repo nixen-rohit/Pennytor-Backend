@@ -11,9 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
-const crypto_1 = require("crypto");
 const prisma_service_1 = require("../../database/prisma.service");
 const client_1 = require("@prisma/client");
+const referral_code_util_1 = require("../../common/utils/referral-code.util");
 let UsersService = class UsersService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -96,7 +96,7 @@ let UsersService = class UsersService {
     }
     async generateUniqueReferralCode() {
         for (let attempt = 0; attempt < 5; attempt++) {
-            const code = (0, crypto_1.randomBytes)(4).toString('hex').toUpperCase();
+            const code = (0, referral_code_util_1.generateReferralCode)();
             const existing = await this.prisma.user.findUnique({
                 where: { ownReferralCode: code },
                 select: { id: true },
