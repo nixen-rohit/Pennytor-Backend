@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, User } from '@prisma/client';
+import { generateReferralCode } from '@common/utils/referral-code.util';
 
 @Injectable()
 export class UsersService {
@@ -114,7 +114,7 @@ export class UsersService {
   /** Retries on the rare unique-constraint collision rather than trusting randomness alone. */
   private async generateUniqueReferralCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
-      const code = randomBytes(4).toString('hex').toUpperCase(); // e.g. "A1B2C3D4"
+      const code = generateReferralCode();
       const existing = await this.prisma.user.findUnique({
         where: { ownReferralCode: code },
         select: { id: true },

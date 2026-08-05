@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -54,6 +56,18 @@ export class AuthController {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
+  }
+
+  @Get('check-email')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Check whether an email is already registered',
+    description: 'Returns { available: boolean }. Used by the register form to show email availability in real time.',
+  })
+  @ApiResponse({ status: 200, description: 'Email availability result' })
+  checkEmail(@Query('email') email: string) {
+    return this.authService.checkEmail(email);
   }
 
   @Post('login')

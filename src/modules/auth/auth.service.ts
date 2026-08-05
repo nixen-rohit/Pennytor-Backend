@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
@@ -53,6 +54,11 @@ export class AuthService {
     );
   }
 
+  async checkEmail(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    return { available: !user };
+  }
+
   async register(dto: RegisterDto, ctx: RequestContext) {
     const existingUser = await this.usersService.findByEmail(dto.email);
 
@@ -63,29 +69,61 @@ export class AuthService {
         userAgent: ctx.userAgent,
         metadata: { reason: 'email_already_registered' },
       });
-      throw new ConflictException(
-        'If this email is available, you will receive a confirmation shortly.',
-      );
+      throw new ConflictException('An account with this email already exists.');
     }
 
     let referredByUserId: string | undefined;
-    if (dto.referralCode) {
-      const referrer = await this.usersService.findByReferralCode(
-        dto.referralCode,
-      );
-      referredByUserId = referrer?.id;
+    const referrer = await this.usersService.findByReferralCode(
+      dto.referralCode,
+    );
+    if (!referrer) {
+      await this.auditService.log({
+        action: 'REGISTER_FAILED',
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'invalid_referral_code' },
+      });
+      throw new BadRequestException('Invalid referral code');
     }
+    referredByUserId = referrer.id;
 
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
 
-    const user = await this.usersService.createWithConsent({
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      email: dto.email,
-      passwordHash,
-      referredBy: referredByUserId,
-      marketingEmails: dto.marketingEmails ?? false,
-    });
+    let user: Awaited<ReturnType<UsersService['createWithConsent']>>;
+    try {
+      user = await this.usersService.createWithConsent({
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+        passwordHash,
+        referredBy: referredByUserId,
+        marketingEmails: dto.marketingEmails ?? false,
+      });
+    } catch (error) {
+      // Two simultaneous requests can both pass the findByEmail() check
+      // above. The database's UNIQUE index is the source of truth — if a
+      // concurrent request inserted the same email first, catch the race
+      // here and surface it as a 409 rather than a 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        Array.isArray(
+          (error.meta as { target?: unknown } | undefined)?.target,
+        ) &&
+        (error.meta as { target: string[] }).target.includes('email')
+      ) {
+        await this.auditService.log({
+          action: 'REGISTER_FAILED',
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          metadata: { reason: 'email_unique_violation_race' },
+        });
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
+      }
+      throw error;
+    }
 
     const otp = await this.otpService.generate(user.id, 'EMAIL_VERIFY');
 

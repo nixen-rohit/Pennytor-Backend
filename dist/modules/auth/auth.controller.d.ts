@@ -16,6 +16,9 @@ export declare class AuthController {
         message: string;
         userId: string;
     }>;
+    checkEmail(email: string): Promise<{
+        available: boolean;
+    }>;
     login(dto: LoginDto, req: Request): Promise<{
         message: string;
         data: {
