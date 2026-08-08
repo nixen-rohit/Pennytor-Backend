@@ -63,6 +63,106 @@ export class MailService {
     });
   }
 
+  async sendAccountApprovedEmail(params: {
+    to: string;
+    firstName: string;
+    clientId: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('account-approved', {
+      firstName: params.firstName,
+      clientId: params.clientId,
+      kycLink: `${this.config.get<string>('FRONTEND_URL')}/kyc`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '🎉 Your Pennytor PMS Account is Opened!',
+      html,
+    });
+  }
+
+
+  async sendKycOtpEmail(params: {
+    to: string;
+    firstName: string;
+    otp: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('kyc-otp', {
+      firstName: params.firstName,
+      otp: params.otp,
+      expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 10),
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: 'Your KYC Verification OTP — Pennytor',
+      html,
+    });
+  }
+
+  async sendKycApprovedEmail(params: {
+    to: string;
+    firstName: string;
+    clientId: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('kyc-approved', {
+      firstName: params.firstName,
+      clientId: params.clientId,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/dashboard`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: "✅ KYC Approved — You're Ready to Invest!",
+      html,
+    });
+  }
+
+  async sendDepositApprovedEmail(params: {
+    to: string;
+    firstName: string;
+    amount: string;
+    walletBalance: string;
+    depositDate: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('deposit-approved', {
+      firstName: params.firstName,
+      amount: params.amount,
+      walletBalance: params.walletBalance,
+      depositDate: params.depositDate,
+      investLink: `${this.config.get<string>('FRONTEND_URL')}/plans`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '💰 Your Deposit is Approved — Pennytor',
+      html,
+    });
+  }
+
+  async sendInvestmentConfirmedEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    investmentAmount: string;
+    lockInPeriod: string;
+    annualReturn: string;
+    expectedProfit: string;
+    investmentDate: string;
+    walletBalance: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('investment-confirmed', {
+      ...params,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/dashboard`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '📈 Investment Confirmed — Pennytor',
+      html,
+    });
+  }
+
   private async send(params: {
     to: string;
     subject: string;

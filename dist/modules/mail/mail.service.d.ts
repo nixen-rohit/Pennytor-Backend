@@ -18,6 +18,39 @@ export declare class MailService {
         token: string;
         email: string;
     }): Promise<void>;
+    sendAccountApprovedEmail(params: {
+        to: string;
+        firstName: string;
+        clientId: string;
+    }): Promise<void>;
+    sendKycOtpEmail(params: {
+        to: string;
+        firstName: string;
+        otp: string;
+    }): Promise<void>;
+    sendKycApprovedEmail(params: {
+        to: string;
+        firstName: string;
+        clientId: string;
+    }): Promise<void>;
+    sendDepositApprovedEmail(params: {
+        to: string;
+        firstName: string;
+        amount: string;
+        walletBalance: string;
+        depositDate: string;
+    }): Promise<void>;
+    sendInvestmentConfirmedEmail(params: {
+        to: string;
+        firstName: string;
+        planName: string;
+        investmentAmount: string;
+        lockInPeriod: string;
+        annualReturn: string;
+        expectedProfit: string;
+        investmentDate: string;
+        walletBalance: string;
+    }): Promise<void>;
     private send;
     private renderTemplate;
 }

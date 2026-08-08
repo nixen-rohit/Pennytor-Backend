@@ -58,6 +58,11 @@ model User {
   ownReferralCode String  @unique
   referredBy      String?
 
+  clientId   String?   @unique
+  isApproved Boolean   @default(false)
+  approvedAt DateTime?
+
+
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
