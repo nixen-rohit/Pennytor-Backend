@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, User } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
@@ -125,5 +129,47 @@ export class UsersService {
       'Failed to generate a unique referral code after 5 attempts',
       { code: 'P2002', clientVersion: 'n/a' },
     );
+  }
+
+  async approveUser(userId: string) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    if (user.isApproved) {
+      return { message: 'User is already approved', clientId: user.clientId };
+    }
+
+    const clientId = await this.generateUniqueClientId();
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        isApproved: true,
+        approvedAt: new Date(),
+        clientId,
+      },
+    });
+
+    await this.mailService.sendAccountApprovedEmail({
+      to: updatedUser.email,
+      firstName: updatedUser.firstName,
+      clientId,
+    });
+
+    return { message: 'User approved and email sent', clientId };
+  }
+
+  private async generateUniqueClientId(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const clientId = Math.floor(100000 + Math.random() * 900000).toString();
+      const existing = await this.prisma.user.findUnique({
+        where: { clientId },
+        select: { id: true },
+      });
+      if (!existing) return clientId;
+    }
+    throw new Error('Failed to generate a unique Client ID');
   }
 }

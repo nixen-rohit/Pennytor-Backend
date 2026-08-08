@@ -14,9 +14,11 @@ const common_1 = require("@nestjs/common");
 const crypto_1 = require("crypto");
 const prisma_service_1 = require("../../database/prisma.service");
 const client_1 = require("@prisma/client");
+const mail_service_1 = require("../mail/mail.service");
 let UsersService = class UsersService {
-    constructor(prisma) {
+    constructor(prisma, mailService) {
         this.prisma = prisma;
+        this.mailService = mailService;
     }
     findByEmail(email) {
         return this.prisma.user.findUnique({
@@ -106,10 +108,47 @@ let UsersService = class UsersService {
         }
         throw new client_1.Prisma.PrismaClientKnownRequestError('Failed to generate a unique referral code after 5 attempts', { code: 'P2002', clientVersion: 'n/a' });
     }
+    async approveUser(userId) {
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        if (user.isApproved) {
+            return { message: 'User is already approved', clientId: user.clientId };
+        }
+        const clientId = await this.generateUniqueClientId();
+        const updatedUser = await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                isApproved: true,
+                approvedAt: new Date(),
+                clientId,
+            },
+        });
+        await this.mailService.sendAccountApprovedEmail({
+            to: updatedUser.email,
+            firstName: updatedUser.firstName,
+            clientId,
+        });
+        return { message: 'User approved and email sent', clientId };
+    }
+    async generateUniqueClientId() {
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const clientId = Math.floor(100000 + Math.random() * 900000).toString();
+            const existing = await this.prisma.user.findUnique({
+                where: { clientId },
+                select: { id: true },
+            });
+            if (!existing)
+                return clientId;
+        }
+        throw new Error('Failed to generate a unique Client ID');
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        mail_service_1.MailService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map
