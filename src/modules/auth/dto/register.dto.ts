@@ -56,7 +56,8 @@ export class RegisterDto {
   password: string;
 
   @ApiProperty({
-    description: '8-character uppercase alphanumeric referral code (required: user accounts must be invited)',
+    description:
+      '8-character uppercase alphanumeric referral code (required: user accounts must be invited)',
     example: 'ABC12345',
     pattern: '^[A-Z0-9]{8}$',
   })

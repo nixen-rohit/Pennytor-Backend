@@ -10,4 +10,3 @@ import { MailModule } from '../mail/mail.module';
   exports: [UsersService],
 })
 export class UsersModule {}
-
