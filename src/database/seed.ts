@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { generateReferralCode } from '@common/utils/referral-code.util';
+import { generateReferralCode } from '../common/utils/referral-code.util';
 
 const prisma = new PrismaClient();
 

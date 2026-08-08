@@ -81,7 +81,6 @@ export class MailService {
     });
   }
 
-
   async sendKycOtpEmail(params: {
     to: string;
     firstName: string;

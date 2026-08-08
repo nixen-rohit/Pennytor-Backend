@@ -1,12 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, User } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
-import { Prisma, User } from '@prisma/client';
-import { generateReferralCode } from '@common/utils/referral-code.util';
+import { generateReferralCode } from '../../common/utils/referral-code.util';
+import { generateClientId } from '../../common/utils/client-id.util';
 
 @Injectable()
 export class UsersService {
@@ -140,7 +137,7 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    
+
     if (user.isApproved) {
       return { message: 'User is already approved', clientId: user.clientId };
     }
@@ -167,7 +164,7 @@ export class UsersService {
 
   private async generateUniqueClientId(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
-      const clientId = Math.floor(100000 + Math.random() * 900000).toString();
+      const clientId = generateClientId();
       const existing = await this.prisma.user.findUnique({
         where: { clientId },
         select: { id: true },
