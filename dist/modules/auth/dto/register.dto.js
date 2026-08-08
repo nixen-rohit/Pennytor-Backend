@@ -64,12 +64,11 @@ __decorate([
     __metadata("design:type", String)
 ], RegisterDto.prototype, "password", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({
-        description: '8-character uppercase alphanumeric referral code',
+    (0, swagger_1.ApiProperty)({
+        description: '8-character uppercase alphanumeric referral code (required: user accounts must be invited)',
         example: 'ABC12345',
         pattern: '^[A-Z0-9]{8}$',
     }),
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.Matches)(/^[A-Z0-9]{8}$/, {
         message: 'Referral code must be 8 uppercase alphanumeric characters',

@@ -35,7 +35,7 @@ backend/
 │   ├── database/
 │   │   ├── prisma.module.ts       # @Global PrismaModule
 │   │   ├── prisma.service.ts      # PrismaClient wrapper (connect/disconnect)
-│   │   └── seed.ts                # Database seed script (stub)
+│   │   └── seed.ts                # Database seed (creates admin with a referral code)
 │   │
 │   ├── common/
 │   │   ├── decorators/
@@ -50,7 +50,7 @@ backend/
 │   └── modules/
 │       ├── auth/                  # Authentication module (largest module)
 │       │   ├── auth.module.ts
-│       │   ├── auth.controller.ts  # 9 API routes
+│       │   ├── auth.controller.ts  # 10 API routes
 │       │   ├── auth.service.ts     # Core auth logic
 │       │   ├── refresh-token.service.ts  # Opaque refresh token management
 │       │   ├── guards/
@@ -130,6 +130,10 @@ cp .env.example .env
 | `JWT_ACCESS_EXPIRY` | `15m` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY_DAYS` | `30` | Refresh token lifetime (days) |
 | `PASSWORD_RESET_EXPIRY_MINUTES` | `15` | Reset token lifetime |
+| `ADMIN_EMAIL` | `admin@pennytor.com` | Admin email used by `npm run db:seed` |
+| `ADMIN_PASSWORD` | `Admin@1234` | Admin password used by `npm run db:seed` |
+| `ADMIN_FIRST_NAME` | `Admin` | Admin first name |
+| `ADMIN_LAST_NAME` | `Pennytor` | Admin last name |
 
 ### Database Setup
 
@@ -175,6 +179,7 @@ All routes are prefixed with `/api`. Auth routes are under `/api/auth/`.
 | Method | Route | Rate Limit | Auth | Description |
 |---|---|---|---|---|
 | `POST` | `/api/auth/register` | 5/60s | No | Create a new account |
+| `GET` | `/api/auth/check-email` | 30/60s | No | Real-time email availability check (used by the register form) |
 | `POST` | `/api/auth/login` | 10/60s | No | Log in (sets refresh cookie) |
 | `POST` | `/api/auth/verify-email` | 10/60s | No | Verify email with 6-digit OTP |
 | `POST` | `/api/auth/refresh` | 10/60s | No | Refresh access token (reads cookie) |
@@ -195,17 +200,41 @@ All routes are prefixed with `/api`. Auth routes are under `/api/auth/`.
   "lastName": "Doe",
   "email": "john@example.com",
   "password": "Str0ng!Pass",
-  "referralCode": "AB12CD34",       // optional
+  "referralCode": "AB12CD34",             // required — user accounts must be invited
   "acceptTerms": true,              // required — must be true
   "marketingEmails": false          // optional
 }
 
-// Response 201
+// Response 201 — created
 {
-  "message": "If the email is not already registered, a verification link has been sent.",
+  "message": "Registration successful. Please verify your email.",
   "userId": "uuid"
 }
+
+// Response 409 — email already registered (pre-check OR unique-constraint race)
+{
+  "statusCode": 409,
+  "path": "/api/auth/register",
+  "timestamp": "2025-01-15T10:30:00.000Z",
+  "message": "An account with this email already exists."
+}
 ```
+
+The email is **normalized (trim + lowercase)** at the DTO boundary before any lookup or insert. See [Email Uniqueness Check](#email-uniqueness-check) below.
+
+#### GET /api/auth/check-email
+
+```json
+// Query Params
+?email=john@example.com
+
+// Response 200
+{
+  "available": true
+}
+```
+
+Returns `{ "available": true }` when the email is free, `{ "available": false }` when a user with that email already exists. The email is normalized to lowercase before the indexed lookup. Throttled at 30/min to prevent mass enumeration. Used by the frontend register form to show live availability feedback and block submission of a taken email.
 
 #### POST /api/auth/login
 
@@ -348,6 +377,84 @@ Authorization: Bearer <accessToken>
 ```
 
 > **Session behavior:** Password change revokes ALL refresh tokens (including the current session's). The user must log in again with the new password. This is intentional — a password change is a security-sensitive action that should invalidate every existing session.
+
+## Email Uniqueness Check
+
+Registration enforces email uniqueness through **normalization + indexed lookup + a database `UNIQUE` constraint + race-condition handling**. No application check alone can be safe, because a `SELECT` followed by an `INSERT` is not atomic.
+
+### 1. Normalization
+
+```
+trim + lowercase  (e.g. "  JOHN@X.com " → "john@x.com")
+```
+
+Applied twice so both the stored and the queried values are canonical:
+
+- **DTO boundary** — `@Transform(({ value }) => value.trim().toLowerCase())` on `RegisterDto.email`, enabled by `ValidationPipe({ transform: true })` in `main.ts`. This is what actually gets written to the DB.
+- **Repository** — `UsersService.findByEmail()` re-normalizes before every `findUnique()` lookup (covers `/register` and `/check-email`), so the query and the stored value always agree.
+
+Without normalization, the unique index would still let `Foo@x.com` and `foo@x.com` both insert, defeating the constraint.
+
+### 2. Indexed lookup (no table scan)
+
+```ts
+await this.prisma.user.findUnique({ where: { email } });
+```
+
+The `email String @unique` column creates a **unique B-tree index** in PostgreSQL. `findUnique` is an indexed point lookup — O(log n) key-node visits, then one heap fetch — instead of an O(n) full table scan. Also, `findUnique` structurally cannot return more than one row, and the index itself enforces uniqueness at the database level.
+
+### 3. Database constraint — the source of truth
+
+```sql
+-- equivalent of email String @unique
+ALTER TABLE "users" ADD CONSTRAINT "users_email_key" UNIQUE ("email");
+```
+
+Application-level pre-checks are subject to a **TOCTOU race**: two requests that both `SELECT` (0 rows) and then both `INSERT` will both pass the app check. The database guarantees exactly one insert succeeds and the other hits the unique index (`Prisma P2002`), which is why the constraint is required.
+
+### 4. Registration flow + race handling
+
+```ts
+// 1. Fast normalized pre-check
+const existing = await this.usersService.findByEmail(dto.email);
+if (existing) throw new ConflictException('An account with this email already exists.'); // 409
+
+// 2. hash password → create user
+try {
+  user = await this.usersService.createWithConsent({ ... }); // $transaction
+} catch (error) {
+  // 3. Race safety net: two concurrent requests both passed step 1.
+  if (error instanceof Prisma.PrismaClientKnownRequestError
+      && error.code === 'P2002'
+      && (error.meta?.target as string[]).includes('email')) {
+    throw new ConflictException('An account with this email already exists.'); // 409
+  }
+  throw error; // any other error → 500
+}
+```
+
+The `P2002` catch converts what would otherwise be an unhandled `500` into the correct `409`. The `target.includes('email')` guard keeps unrelated unique collisions (e.g. `ownReferralCode`) from being misreported as "email exists".
+
+### 5. Frontend integration (`RegisterForm.tsx`)
+
+The frontend uses `GET /check-email` for **UX, not security**:
+
+- Debounced (400ms) availability request as the user types.
+- Live feedback: *checking…* → green *"This email is available"* → red *"This email is already registered"*.
+- Submit is disabled while checking or when the email is taken.
+
+The backend `UNIQUE` index remains the final authority: if the frontend is bypassed or two users race, `/register` still returns `409` and the form surfaces it via the `errorMsg` banner.
+
+### Uniqueness error summary
+
+| Case | Code | Message |
+|---|---|---|
+| Email already registered (pre-check) | `409` | `An account with this email already exists.` |
+| Concurrent duplicate insert (P2002 race) | `409` | `An account with this email already exists.` |
+| Invalid DTO / malformed email | `400` | validation message |
+| Any other DB / infra error | rethrow → `500` | — |
+
+---
 
 ### Standard Error Response
 
@@ -527,8 +634,9 @@ Register ──> Verify Email (OTP) ──> Login ──> Access Token + Refresh
 | **Token rotation** | Every refresh creates new token, links old via `replacedByTokenId` |
 | **Theft detection** | If a revoked token is replayed, ALL user tokens are revoked |
 | **Brute-force protection** | Account locks after 5 failed logins for 15 minutes |
-| **Rate limiting** | Per-route throttling on all auth endpoints (3–10 req/60s) |
-| **No email enumeration** | Register, resend-otp, forgot-password return identical messages |
+| **Rate limiting** | Per-route throttling on all auth endpoints (3–30 req/60s) |
+| **Email uniqueness** | Normalized indexed lookup + DB `UNIQUE` index + `P2002` race handling → `409` |
+| **No email enumeration** | `resend-otp` and `forgot-password` return identical messages regardless of existence. Exception: `register` / `check-email` disclose whether an email exists — acceptable for open signup and rate-limited (5/min register, 30/min check-email). Use the generic "If this email is available…" message pattern instead if you need to prevent enumeration. |
 | **JWT algorithm pinning** | HS256 enforced, token header `alg` is ignored |
 | **Minimal JWT payload** | Only `{ sub, role }` — no stale data |
 | **Security headers** | helmet middleware (X-Frame-Options, HSTS, etc.) |
@@ -661,8 +769,6 @@ Defined in `tsconfig.json`:
 | `ACCOUNT_LOCKED` / `ACCOUNT_UNLOCKED` audit actions | Defined in enum but never logged. Account locking works (via `lockedUntil` field + `LOGIN_FAILED` audit), but dedicated lock/unlock audit events are not emitted. `ACCOUNT_UNLOCKED` is never triggered — the lock expires silently via time check, no code path logs the transition |
 | `SUSPENDED` / `DELETED` user statuses | Defined in enum, no code path sets these |
 | `LOGIN_MFA` OTP purpose | Reserved for future step-up auth |
-| `multer` | Installed, no file upload functionality |
-| `razorpay` | Installed, no payment functionality |
 | `nodemailer` | Installed, Brevo REST API used instead |
 
 ### Known Residual Risks (By Design)

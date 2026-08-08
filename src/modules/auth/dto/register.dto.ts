@@ -55,17 +55,16 @@ export class RegisterDto {
   @IsStrongPassword()
   password: string;
 
-  @ApiPropertyOptional({
-    description: '8-character uppercase alphanumeric referral code',
+  @ApiProperty({
+    description: '8-character uppercase alphanumeric referral code (required: user accounts must be invited)',
     example: 'ABC12345',
     pattern: '^[A-Z0-9]{8}$',
   })
-  @IsOptional()
   @IsString()
   @Matches(/^[A-Z0-9]{8}$/, {
     message: 'Referral code must be 8 uppercase alphanumeric characters',
   })
-  referralCode?: string;
+  referralCode: string;
 
   @ApiProperty({
     description: 'Must be true to accept the terms and conditions',

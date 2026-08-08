@@ -16,6 +16,7 @@ const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = require("bcrypt");
 const crypto_1 = require("crypto");
+const client_1 = require("@prisma/client");
 const users_service_1 = require("../users/users.service");
 const otp_service_1 = require("../otp/otp.service");
 const mail_service_1 = require("../mail/mail.service");
@@ -37,6 +38,10 @@ let AuthService = AuthService_1 = class AuthService {
         this.accessExpiry = this.config.get('JWT_ACCESS_EXPIRY', '15m');
         this.resetExpiryMinutes = this.config.get('PASSWORD_RESET_EXPIRY_MINUTES', 15);
     }
+    async checkEmail(email) {
+        const user = await this.usersService.findByEmail(email);
+        return { available: !user };
+    }
     async register(dto, ctx) {
         const existingUser = await this.usersService.findByEmail(dto.email);
         if (existingUser) {
@@ -46,22 +51,47 @@ let AuthService = AuthService_1 = class AuthService {
                 userAgent: ctx.userAgent,
                 metadata: { reason: 'email_already_registered' },
             });
-            throw new common_1.ConflictException('If this email is available, you will receive a confirmation shortly.');
+            throw new common_1.ConflictException('An account with this email already exists.');
         }
         let referredByUserId;
-        if (dto.referralCode) {
-            const referrer = await this.usersService.findByReferralCode(dto.referralCode);
-            referredByUserId = referrer?.id;
+        const referrer = await this.usersService.findByReferralCode(dto.referralCode);
+        if (!referrer) {
+            await this.auditService.log({
+                action: 'REGISTER_FAILED',
+                ipAddress: ctx.ipAddress,
+                userAgent: ctx.userAgent,
+                metadata: { reason: 'invalid_referral_code' },
+            });
+            throw new common_1.BadRequestException('Invalid referral code');
         }
+        referredByUserId = referrer.id;
         const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-        const user = await this.usersService.createWithConsent({
-            firstName: dto.firstName,
-            lastName: dto.lastName,
-            email: dto.email,
-            passwordHash,
-            referredBy: referredByUserId,
-            marketingEmails: dto.marketingEmails ?? false,
-        });
+        let user;
+        try {
+            user = await this.usersService.createWithConsent({
+                firstName: dto.firstName,
+                lastName: dto.lastName,
+                email: dto.email,
+                passwordHash,
+                referredBy: referredByUserId,
+                marketingEmails: dto.marketingEmails ?? false,
+            });
+        }
+        catch (error) {
+            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+                error.code === 'P2002' &&
+                Array.isArray(error.meta?.target) &&
+                error.meta.target.includes('email')) {
+                await this.auditService.log({
+                    action: 'REGISTER_FAILED',
+                    ipAddress: ctx.ipAddress,
+                    userAgent: ctx.userAgent,
+                    metadata: { reason: 'email_unique_violation_race' },
+                });
+                throw new common_1.ConflictException('An account with this email already exists.');
+            }
+            throw error;
+        }
         const otp = await this.otpService.generate(user.id, 'EMAIL_VERIFY');
         try {
             await this.mailService.sendVerificationEmail({
