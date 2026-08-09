@@ -9,6 +9,9 @@ import { UsersModule } from './modules/users/users.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { MailModule } from './modules/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SessionModule } from './modules/session/session.module';
+import { CsrfModule } from './modules/csrf/csrf.module';
+import { CsrfGuard } from './modules/csrf/csrf.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
@@ -16,6 +19,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ConfigModule,
     PrismaModule,
     AuditModule,
+    SessionModule,
+    CsrfModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -34,6 +39,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Runs on every request BEFORE controller-level guards, so CSRF is
+    // validated before session authentication spends a DB lookup.
+    { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })

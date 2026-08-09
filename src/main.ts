@@ -15,6 +15,11 @@ async function bootstrap() {
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
       contentSecurityPolicy: false,
+      // Tighten clickjacking + referrer leakage beyond Helmet's defaults.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      ...(config.get<string>('NODE_ENV') === 'production'
+        ? { hsts: { maxAge: 31536000, includeSubDomains: true, preload: true } }
+        : {}),
     }),
   );
   app.use(cookieParser());

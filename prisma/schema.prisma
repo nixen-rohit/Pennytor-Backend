@@ -73,7 +73,6 @@ model User {
   consent               UserConsent?
   otps                  Otp[]
   passwordResetTokens   PasswordResetToken[]
-  refreshTokens         RefreshToken[]
   sessions              Session[]
   auditLogs             AuditLog[]
 
@@ -128,35 +127,13 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-model RefreshToken {
+model Session {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   tokenHash String   @unique
   expiresAt DateTime
-
-  ipAddress String?
-  userAgent String?
-
-  revokedAt         DateTime?
-  replacedByTokenId String?   @unique
-  replacedByToken   RefreshToken? @relation("TokenChain", fields: [replacedByTokenId], references: [id])
-  replacesToken     RefreshToken? @relation("TokenChain")
-
-  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  sessionId String?
-
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@map("refresh_tokens")
-}
-
-model Session {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   deviceLabel String?
   ipAddress   String?
@@ -166,8 +143,6 @@ model Session {
   revokedAt    DateTime?
 
   createdAt DateTime @default(now())
-
-  refreshTokens RefreshToken[]
 
   @@index([userId])
   @@map("sessions")
