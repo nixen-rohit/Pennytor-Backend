@@ -10,7 +10,7 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBearerAuth,
+  ApiCookieAuth,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
@@ -23,7 +23,7 @@ import { Role } from '@prisma/client';
 // Authorization is enforced server-side, on every request. The Next.js
 // frontend only decides what to render; it is never the security boundary.
 @UseGuards(SessionAuthGuard, RolesGuard)
-@ApiBearerAuth()
+@ApiCookieAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
