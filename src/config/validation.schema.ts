@@ -14,8 +14,12 @@ export const validationSchema = Joi.object({
 
   FRONTEND_URL: Joi.string().uri().required(),
 
-  // bcrypt cost factor — 12 is a reasonable production default
-  BCRYPT_SALT_ROUNDS: Joi.number().min(10).max(15).default(12),
+  // Server-side session lifetime in days. The HttpOnly `sid` cookie maxAge
+  // is derived from this, so cookie and session expiry are always in sync.
+  SESSION_TTL_DAYS: Joi.number().min(1).max(365).default(30),
+
+  // HMAC key that signs the CSRF tokens. Generate: openssl rand -hex 32
+  CSRF_SECRET: Joi.string().min(32).required(),
 
   OTP_EXPIRY_MINUTES: Joi.number().default(5),
   OTP_MAX_ATTEMPTS: Joi.number().default(5),
@@ -28,13 +32,5 @@ export const validationSchema = Joi.object({
   THROTTLE_TTL_SECONDS: Joi.number().default(60),
   THROTTLE_LIMIT: Joi.number().default(10),
 
-  // JWT access token — base64-encoded HS256 key, generated via openssl rand -base64 64
-  JWT_ACCESS_SECRET: Joi.string().required(),
-  JWT_ACCESS_EXPIRY: Joi.string().default('15m'),
-
-  // Refresh token lifetime in days (opaque random string, not a JWT)
-  JWT_REFRESH_EXPIRY_DAYS: Joi.number().default(30),
-
-  // Password reset token lifetime in minutes (opaque random string, not a JWT)
   PASSWORD_RESET_EXPIRY_MINUTES: Joi.number().default(15),
 });

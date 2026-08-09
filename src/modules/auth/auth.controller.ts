@@ -10,7 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { CookieOptions, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -19,35 +20,71 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { SessionAuthGuard, SESSION_COOKIE } from './guards/session-auth.guard';
+import { SessionService } from '../session/session.service';
+import { CsrfService, CSRF_COOKIE } from '../csrf/csrf.service';
+import { SkipCsrf } from '../csrf/csrf.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshDto } from './dto/refresh.dto';
-import { LogoutDto } from './dto/logout.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
-const REFRESH_COOKIE = 'refresh_token';
-const REFRESH_OPTIONS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'strict' as const,
-  path: '/api',
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-};
+const CSRF_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly isProd: boolean;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
+    private readonly csrfService: CsrfService,
+    config: ConfigService,
+  ) {
+    this.isProd = config.get<string>('NODE_ENV', 'development') === 'production';
+  }
+
+  /**
+   * Session cookie: HttpOnly (JS cannot read it → token theft via XSS is
+   * impossible), SameSite=Lax (blocks cross-site delivery), Secure in
+   * production, scoped to the API path. maxAge matches the session TTL —
+   * when the cookie's lifetime ends, the server-side session has already
+   * expired, so no orphan state can linger.
+   */
+  private sessionCookieOptions(): CookieOptions {
+    return {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: 'lax',
+      path: '/api',
+      maxAge: this.sessionService.ttlMillis,
+    };
+  }
+
+  private csrfCookieOptions(): CookieOptions {
+    return {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: 'lax',
+      path: '/api',
+      maxAge: CSRF_MAX_AGE,
+    };
+  }
+
+  private clearAuthCookies(res: { clearCookie: (n: string, o: CookieOptions) => void }) {
+    res.clearCookie(SESSION_COOKIE, this.sessionCookieOptions());
+    res.clearCookie(CSRF_COOKIE, this.csrfCookieOptions());
+  }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Create a new Pennytor account' })
+  @SkipCsrf()
+  @ApiOperation({ summary: 'Create a new account' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 409, description: 'Email already registered' })
@@ -61,12 +98,6 @@ export class AuthController {
   @Get('check-email')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Check whether an email is already registered',
-    description:
-      'Returns { available: boolean }. Used by the register form to show email availability in real time.',
-  })
-  @ApiResponse({ status: 200, description: 'Email availability result' })
   checkEmail(@Query('email') email: string) {
     return this.authService.checkEmail(email);
   }
@@ -74,6 +105,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @SkipCsrf()
   @ApiOperation({ summary: 'Log into an existing account' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'Login successful' })
@@ -82,27 +114,56 @@ export class AuthController {
     description: 'Invalid credentials / Unverified email / Locked',
   })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
-    const ctx = {
+    const result = await this.authService.login(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-    };
+    });
 
-    const result = await this.authService.login(dto, ctx);
-    const { refreshToken, ...rest } = result.data;
-
-    // Set the refresh token as an HttpOnly cookie — never in a JSON body
+    // The session ID never leaves the server through JSON — it is delivered
+    // exclusively via the HttpOnly cookie.
     const response = req.res!;
-    response.cookie(REFRESH_COOKIE, refreshToken, REFRESH_OPTIONS);
+    response.cookie(
+      SESSION_COOKIE,
+      result.data.sessionId,
+      this.sessionCookieOptions(),
+    );
 
-    return { message: result.message, data: rest };
+    // Arm the CSRF token for the very next state-changing request.
+    const csrf = this.csrfService.issue();
+    response.cookie(CSRF_COOKIE, csrf.cookieValue, this.csrfCookieOptions());
+
+    const { sessionId, ...safeData } = result.data;
+    return { message: result.message, data: { ...safeData, csrfToken: csrf.value } };
+  }
+
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SessionAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get the authenticated user for the current session',
+    description:
+      'Called on every page load. The session is restored entirely from ' +
+      'the HttpOnly cookie — no token is ever stored client-side.',
+  })
+  @ApiResponse({ status: 200, description: 'Current user' })
+  @ApiResponse({ status: 401, description: 'Not signed in / invalid session' })
+  async me(@Req() req: Request) {
+    const user = (req as Request & { user: { id: string } }).user;
+
+    const result = await this.authService.me(user.id);
+
+    const response = req.res!;
+    const csrf = this.csrfService.issue();
+    response.cookie(CSRF_COOKIE, csrf.cookieValue, this.csrfCookieOptions());
+
+    return { data: { ...result.data, csrfToken: csrf.value } };
   }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Verify a newly created account via emailed OTP' })
-  @ApiBody({ type: VerifyEmailDto })
-  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @SkipCsrf()
   verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(dto, {
       ipAddress: req.ip,
@@ -110,80 +171,10 @@ export class AuthController {
     });
   }
 
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Refresh access token using the HttpOnly refresh token cookie',
-    description:
-      'The refresh token is read from the "refresh_token" HttpOnly cookie, never from the request body.',
-  })
-  @ApiBody({ type: RefreshDto })
-  @ApiResponse({ status: 200, description: 'Tokens refreshed' })
-  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refresh(@Body() _dto: RefreshDto, @Req() req: Request) {
-    const rawToken = req.cookies?.[REFRESH_COOKIE];
-    if (!rawToken) {
-      return { statusCode: 401, message: 'Refresh token not provided' };
-    }
-
-    const ctx = {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    };
-
-    const { accessToken, refreshToken } = await this.authService.refresh(
-      rawToken,
-      ctx,
-    );
-
-    const response = req.res!;
-    response.cookie(REFRESH_COOKIE, refreshToken, REFRESH_OPTIONS);
-
-    return { data: { accessToken } };
-  }
-
-  @Post('logout')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Log out the current session (or all sessions)',
-    description:
-      'Requires a valid access token in the Authorization header. ' +
-      'Set body.all = true to revoke every session for this user.',
-  })
-  @ApiBody({ type: LogoutDto })
-  @ApiResponse({ status: 200, description: 'Logged out' })
-  async logout(@Body() dto: LogoutDto, @Req() req: Request) {
-    const rawToken = req.cookies?.[REFRESH_COOKIE];
-    const user = req.user as { id: string };
-
-    const ctx = {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    };
-
-    const result = await this.authService.logout(
-      rawToken,
-      dto.all === true,
-      user.id,
-      ctx,
-    );
-
-    const response = req.res!;
-    response.clearCookie(REFRESH_COOKIE, { path: '/api' });
-
-    return result;
-  }
-
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Resend email verification OTP' })
-  @ApiBody({ type: ResendOtpDto })
-  @ApiResponse({ status: 200, description: 'OTP resent or silently ignored' })
+  @SkipCsrf()
   resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
     return this.authService.resendOtp(dto, {
       ipAddress: req.ip,
@@ -191,12 +182,45 @@ export class AuthController {
     });
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(SessionAuthGuard)
+  @ApiBearerAuth()
+  async logout(@Req() req: Request) {
+    const user = (req as Request & { user: { id: string } }).user;
+    const rawSessionId = (req.cookies as Record<string, string>)[SESSION_COOKIE];
+
+    const result = await this.authService.logout(rawSessionId, user.id, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    this.clearAuthCookies(req.res!);
+    return result;
+  }
+
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseGuards(SessionAuthGuard)
+  @ApiBearerAuth()
+  async logoutAll(@Req() req: Request) {
+    const user = (req as Request & { user: { id: string } }).user;
+
+    const result = await this.authService.logoutAll(user.id, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    this.clearAuthCookies(req.res!);
+    return result;
+  }
+
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Request a password reset link' })
-  @ApiBody({ type: ForgotPasswordDto })
-  @ApiResponse({ status: 200, description: 'Generic success message' })
+  @SkipCsrf()
   forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
     return this.authService.forgotPassword(dto, {
       ipAddress: req.ip,
@@ -207,10 +231,7 @@ export class AuthController {
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Set a new password using a reset token' })
-  @ApiBody({ type: ResetPasswordDto })
-  @ApiResponse({ status: 200, description: 'Password reset successful' })
-  @ApiResponse({ status: 400, description: 'Invalid or expired reset link' })
+  @SkipCsrf()
   resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     return this.authService.resetPassword(dto, {
       ipAddress: req.ip,
@@ -221,18 +242,10 @@ export class AuthController {
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Change password for the authenticated user',
-    description:
-      'Requires a valid access token. Revokes all other sessions on success.',
-  })
-  @ApiBody({ type: ChangePasswordDto })
-  @ApiResponse({ status: 200, description: 'Password changed' })
-  @ApiResponse({ status: 400, description: 'Current password is incorrect' })
   changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
-    const user = req.user as { id: string };
+    const user = (req as Request & { user: { id: string } }).user;
     return this.authService.changePassword(user.id, dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],

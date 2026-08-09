@@ -5,7 +5,7 @@ export class LogoutDto {
   @ApiProperty({
     description:
       'Set to true to revoke every session for this user (logout everywhere). ' +
-      'Omit or set to false to revoke only the current session.',
+      'Omitting this logs out only the current session.',
     required: false,
     example: false,
   })
