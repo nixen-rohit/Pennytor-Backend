@@ -46,6 +46,10 @@ async function bootstrap() {
         'Pennytor — Financial Investment Platform API\n\n' +
           '## Overview\n' +
           'This API powers the Pennytor financial investment platform. All endpoints are prefixed with `/api`.\n\n' +
+          '## Authentication\n' +
+          'Server-side sessions. `POST /auth/login` sets an HttpOnly `sid` cookie ' +
+          '(same-site deployment required). State-changing requests need the ' +
+          '`X-CSRF-Token` header matching the signed `csrf_token` cookie issued at login /auth/me.\n\n' +
           '## Rate Limiting\n' +
           'All endpoints are rate-limited. Specific limits are documented per endpoint.\n' +
           'Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) are included in responses.\n\n' +
@@ -62,14 +66,20 @@ async function bootstrap() {
       )
       .setVersion('1.0')
       .addTag('auth', 'Authentication & registration endpoints')
-      .addBearerAuth(
+      .addCookieAuth(
+        'sid',
         {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Enter your JWT access token',
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'sid',
+          description:
+            'Session cookie, set automatically by POST /auth/login. ' +
+            'Copy it from the Login response in a browser devtools session, ' +
+            'or use the "Try it out" flow: login → copy Set-Cookie → add here. ' +
+            'Authenticated mutations also require a valid `X-CSRF-Token` header ' +
+            '(value of the `csrf_token` cookie, issued at login and /auth/me).',
         },
-        'access-token',
+        'session-cookie',
       )
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);

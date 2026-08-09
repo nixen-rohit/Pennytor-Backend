@@ -17,7 +17,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBody,
-  ApiBearerAuth,
+  ApiCookieAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SessionAuthGuard, SESSION_COOKIE } from './guards/session-auth.guard';
@@ -139,7 +139,7 @@ export class AuthController {
   @Get('me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SessionAuthGuard)
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   @ApiOperation({
     summary: 'Get the authenticated user for the current session',
     description:
@@ -186,7 +186,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   async logout(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     const rawSessionId = (req.cookies as Record<string, string>)[SESSION_COOKIE];
@@ -204,7 +204,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   async logoutAll(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
 
@@ -243,7 +243,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     return this.authService.changePassword(user.id, dto, {
