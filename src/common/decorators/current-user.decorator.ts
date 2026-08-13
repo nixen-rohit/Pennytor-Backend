@@ -9,7 +9,9 @@ import { AuthUser } from '../../modules/auth/guards/session-auth.guard';
  */
 export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext): AuthUser => {
-    const request = context.switchToHttp().getRequest<Request & { user: AuthUser }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user: AuthUser }>();
     return request.user;
   },
 );

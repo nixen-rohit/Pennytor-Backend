@@ -33,4 +33,18 @@ export const validationSchema = Joi.object({
   THROTTLE_LIMIT: Joi.number().default(10),
 
   PASSWORD_RESET_EXPIRY_MINUTES: Joi.number().default(15),
+
+  // Root of the private document store. Files under here are NEVER served
+  // by Nginx — only through the authenticated /api/admin/kyc endpoints.
+  PRIVATE_STORAGE_PATH: Joi.string().min(1).default('/var/private-storage'),
+
+  // AES-256 key for the admin-reviewable KYC ciphertext columns.
+  // Generate: openssl rand -hex 32
+  DATA_ENCRYPTION_KEY: Joi.string()
+    .length(64)
+    .pattern(/^[0-9a-f]{64}$/i)
+    .required(),
+
+  // Hard cap for a single uploaded KYC document, in MB.
+  KYC_UPLOAD_MAX_MB: Joi.number().min(1).max(10).default(2),
 });

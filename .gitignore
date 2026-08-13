@@ -37,6 +37,9 @@ yarn-error.log*
 .env.local
 .env
 
+# private KYC document store (local dev only; prod lives at /var/private-storage)
+/private-storage
+
 
 # vercel
 .vercel

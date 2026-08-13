@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #dc2626; font-size: 22px; margin: 0 0 4px 0;">KYC Application Rejected</h1>
+          <p style="color: #6b7280; font-size: 14px; margin: 0;">Action required to resubmit</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Unfortunately, your KYC application was not approved by our admin team.
+          Please review the reason below, correct the issue, and resubmit your details.
+        </p>
+
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 20px 0;">
+          <p style="color: #991b1b; font-size: 13px; font-weight: bold; margin: 0 0 6px 0;">Reason for rejection:</p>
+          <p style="color: #7f1d1d; font-size: 15px; line-height: 1.6; margin: 0;">{{reason}}</p>
+        </div>
+
+        {{#if clientId}}
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Your Client ID is: <strong>{{clientId}}</strong>
+        </p>
+        {{/if}}
+
+        <p style="text-align: center; margin: 28px 0;">
+          <a href="{{kycLink}}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 36px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+            Resubmit KYC
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

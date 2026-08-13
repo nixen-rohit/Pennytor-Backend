@@ -45,7 +45,8 @@ export class AuthController {
     private readonly csrfService: CsrfService,
     config: ConfigService,
   ) {
-    this.isProd = config.get<string>('NODE_ENV', 'development') === 'production';
+    this.isProd =
+      config.get<string>('NODE_ENV', 'development') === 'production';
   }
 
   /**
@@ -75,7 +76,9 @@ export class AuthController {
     };
   }
 
-  private clearAuthCookies(res: { clearCookie: (n: string, o: CookieOptions) => void }) {
+  private clearAuthCookies(res: {
+    clearCookie: (n: string, o: CookieOptions) => void;
+  }) {
     res.clearCookie(SESSION_COOKIE, this.sessionCookieOptions());
     res.clearCookie(CSRF_COOKIE, this.csrfCookieOptions());
   }
@@ -133,7 +136,10 @@ export class AuthController {
     response.cookie(CSRF_COOKIE, csrf.cookieValue, this.csrfCookieOptions());
 
     const { sessionId, ...safeData } = result.data;
-    return { message: result.message, data: { ...safeData, csrfToken: csrf.value } };
+    return {
+      message: result.message,
+      data: { ...safeData, csrfToken: csrf.value },
+    };
   }
 
   @Get('me')
@@ -154,10 +160,23 @@ export class AuthController {
     const result = await this.authService.me(user.id);
 
     const response = req.res!;
-    const csrf = this.csrfService.issue();
-    response.cookie(CSRF_COOKIE, csrf.cookieValue, this.csrfCookieOptions());
 
-    return { data: { ...result.data, csrfToken: csrf.value } };
+    // Reuse an already-armed token instead of rotating it: the SPA keeps the
+    // token in memory and a rotated cookie here would silently invalidate the
+    // token the client still holds, breaking the next mutation.
+    const existingValue = (
+      (req.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE] ?? ""
+    ).split(".")[0];
+    let csrfValue: string;
+    if (existingValue) {
+      csrfValue = existingValue;
+    } else {
+      const csrf = this.csrfService.issue();
+      csrfValue = csrf.value;
+      response.cookie(CSRF_COOKIE, csrf.cookieValue, this.csrfCookieOptions());
+    }
+
+    return { data: { ...result.data, csrfToken: csrfValue } };
   }
 
   @Post('verify-email')
@@ -189,7 +208,9 @@ export class AuthController {
   @ApiCookieAuth()
   async logout(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
-    const rawSessionId = (req.cookies as Record<string, string>)[SESSION_COOKIE];
+    const rawSessionId = (req.cookies as Record<string, string>)[
+      SESSION_COOKIE
+    ];
 
     const result = await this.authService.logout(rawSessionId, user.id, {
       ipAddress: req.ip,

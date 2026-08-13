@@ -85,7 +85,10 @@ export class SessionAuthGuard implements CanActivate {
       throw new UnauthorizedException('Account no longer exists');
     }
 
-    if (user.status === UserStatus.LOCKED || user.status === UserStatus.SUSPENDED) {
+    if (
+      user.status === UserStatus.LOCKED ||
+      user.status === UserStatus.SUSPENDED
+    ) {
       throw new UnauthorizedException('Account is not accessible');
     }
 

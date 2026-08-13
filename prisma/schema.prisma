@@ -24,6 +24,7 @@ enum OtpPurpose {
   EMAIL_VERIFY
   PASSWORD_RESET
   LOGIN_MFA
+  KYC_SUBMIT
 }
 
 enum AuditAction {
@@ -44,6 +45,47 @@ enum AuditAction {
   ACCOUNT_UNLOCKED
 }
 
+enum KycApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum KycFileType {
+  SELFIE
+  AADHAAR_FRONT
+  AADHAAR_BACK
+  PAN
+  SIGNATURE
+}
+
+enum KycFileAuditAction {
+  VIEW
+  DOWNLOAD
+  DELETE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+  SALARY
+}
+
 model User {
   id           String     @id @default(uuid())
   firstName    String
@@ -60,8 +102,6 @@ model User {
 
   clientId   String?   @unique
   isApproved Boolean   @default(false)
-  approvedAt DateTime?
-
 
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
@@ -75,9 +115,133 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   sessions              Session[]
   auditLogs             AuditLog[]
+  kycApplication        KycApplication?
 
   @@index([email])
   @@map("users")
+}
+
+// One KYC application per user. Re-submission after a rejection updates the
+// same row (DRAFT again), so the application id — and therefore the private
+// storage directory — is stable across attempts.
+//
+// Sensitive values (aadhaarNumber, accountNumber, nomineeAadhaar) are stored
+// AES-256-GCM encrypted via EncryptionService; this table never holds their
+// plaintext.
+model KycApplication {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status KycApplicationStatus @default(DRAFT)
+
+  // Step 1 — Personal information
+  fullName      String
+  phone         String
+  dob           DateTime
+  gender        Gender?
+  maritalStatus MaritalStatus?
+
+  // Step 2 — Aadhaar / PAN. Identifiers are AES-256-GCM ciphertext at rest;
+  // the ciphertext is decrypted ONLY for an ADMIN on the review-detail
+  // endpoint, because verification needs the full numbers. The last-4
+  // plaintext digits power the user-facing masks. Nullable: rows created
+  // before this layer cannot be retro-fitted.
+  aadhaarNumberEncrypted String?
+  aadhaarNumberLast4     String
+  panNumberEncrypted     String?
+  panNumberLast4         String
+
+  // Step 3 — Bank details (same scheme as step 2)
+  accountHolderName      String
+  accountNumberEncrypted String?
+  accountNumberLast4     String
+  ifscCodeEncrypted      String?
+  ifscCodeLast4          String
+  bankName               String
+  branchName             String
+  accountType            AccountType?
+  branchAddress          String?
+
+  // Step 4 — Nominee (same scheme as step 2)
+  nomineeName             String
+  nomineeDob              DateTime
+  nomineePhone            String?
+  nomineeAadhaarEncrypted String?
+  nomineeAadhaarLast4     String
+
+  submittedAt DateTime?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNote  String?
+
+  files KycFile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("kyc_applications")
+}
+
+// File metadata ONLY. Actual bytes live on the VPS filesystem under
+// PRIVATE_STORAGE_PATH/kyc/<applicationId>/ and are never served publicly —
+// they are streamed through the authenticated admin API.
+//
+// storagePath is RELATIVE to PRIVATE_STORAGE_PATH (e.g. `kyc/<appId>/<name>`)
+// so it can never be abused as an absolute path, and the frontend is never
+// given it.
+//
+// @@unique([applicationId, type]) enforces a single file per type per
+// application: uploading the same type again explicitly replaces it.
+model KycFile {
+  id            String @id @default(uuid())
+  applicationId String
+  application   KycApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  type KycFileType
+
+  originalName String
+  storageName  String
+  storagePath  String
+  mimeType     String
+  fileSize     Int
+
+  auditLogs KycFileAuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([applicationId, type])
+  @@index([applicationId])
+  @@map("kyc_files")
+}
+
+// Every admin access to a private KYC document is recorded here:
+// VIEW / DOWNLOAD / DELETE, with the acting admin and request context.
+model KycFileAuditLog {
+  id     String @id @default(uuid())
+  fileId String?
+  file   KycFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  // Snapshot taken at audit time — the row stays meaningful even after the
+  // file itself is deleted (fileId then becomes null).
+  fileType    KycFileType
+  storagePath String
+
+  adminId     String
+  action      KycFileAuditAction
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([fileId])
+  @@index([adminId])
+  @@index([action])
+  @@map("kyc_file_audit_logs")
 }
 
 model UserConsent {
