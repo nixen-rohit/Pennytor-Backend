@@ -160,10 +160,7 @@ export class SessionService {
     const cutoff = new Date(Date.now() - this.ttlMillis * 2);
     const deleted = await tx.session.deleteMany({
       where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          { revokedAt: { lt: cutoff } },
-        ],
+        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: cutoff } }],
       },
     });
     if (deleted.count > 0) {

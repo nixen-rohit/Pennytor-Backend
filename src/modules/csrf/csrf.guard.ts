@@ -49,7 +49,10 @@ export class CsrfGuard implements CanActivate {
     config: ConfigService,
     private readonly reflector: Reflector,
   ) {
-    const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    const frontendUrl = config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
     this.allowedOrigins = [frontendUrl.replace(/\/$/, '')];
   }
 
@@ -76,9 +79,9 @@ export class CsrfGuard implements CanActivate {
 
     if (hasSession) {
       const headerToken = request.headers['x-csrf-token'] as string | undefined;
-      const cookieValue = (request.cookies as Record<string, string> | undefined)?.[
-        CSRF_COOKIE
-      ];
+      const cookieValue = (
+        request.cookies as Record<string, string> | undefined
+      )?.[CSRF_COOKIE];
       if (!this.csrfService.verify(headerToken, cookieValue)) {
         throw new ForbiddenException('CSRF token missing or invalid');
       }
@@ -107,7 +110,9 @@ export class CsrfGuard implements CanActivate {
   }
 
   private ensureCookie(request: Request, response: Response): void {
-    if ((request.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE]) {
+    if (
+      (request.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE]
+    ) {
       return;
     }
 

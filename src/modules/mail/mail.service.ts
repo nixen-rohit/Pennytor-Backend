@@ -27,10 +27,12 @@ export class MailService {
     to: string;
     firstName: string;
     otp: string;
+    clientId?: string | null;
   }): Promise<void> {
     const html = this.renderTemplate('verify-email', {
       firstName: params.firstName,
       otp: params.otp,
+      clientId: params.clientId,
       expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 5),
     });
 
@@ -113,6 +115,26 @@ export class MailService {
     await this.send({
       to: params.to,
       subject: "✅ KYC Approved — You're Ready to Invest!",
+      html,
+    });
+  }
+
+  async sendKycRejectedEmail(params: {
+    to: string;
+    firstName: string;
+    clientId?: string | null;
+    reason: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('kyc-rejected', {
+      firstName: params.firstName,
+      clientId: params.clientId,
+      reason: params.reason,
+      kycLink: `${this.config.get<string>('FRONTEND_URL')}/account-kyc`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: 'KYC Application Rejected — Action Required',
       html,
     });
   }

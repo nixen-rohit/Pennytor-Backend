@@ -28,7 +28,10 @@ export class CsrfService {
   private readonly secret: string;
 
   constructor(config: ConfigService) {
-    this.secret = config.get<string>('CSRF_SECRET', 'dev-only-csrf-secret-change-me');
+    this.secret = config.get<string>(
+      'CSRF_SECRET',
+      'dev-only-csrf-secret-change-me',
+    );
   }
 
   issue(): { value: string; cookieValue: string } {
@@ -41,17 +44,24 @@ export class CsrfService {
   }
 
   /** Verifies a cookie value (signature) and matches it against the header token. */
-  verify(headerToken: string | undefined, cookieValue: string | undefined): boolean {
+  verify(
+    headerToken: string | undefined,
+    cookieValue: string | undefined,
+  ): boolean {
     if (!headerToken || !cookieValue) return false;
 
     const [value, signature] = cookieValue.split('.');
     if (!value || !signature) return false;
 
-    const expected = createHmac('sha256', this.secret).update(value).digest('hex');
+    const expected = createHmac('sha256', this.secret)
+      .update(value)
+      .digest('hex');
     const sigOk =
       expected.length === signature.length &&
       timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 
-    return sigOk && timingSafeEqual(Buffer.from(value), Buffer.from(headerToken));
+    return (
+      sigOk && timingSafeEqual(Buffer.from(value), Buffer.from(headerToken))
+    );
   }
 }

@@ -90,10 +90,14 @@ export class AuthService {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002' &&
-        Array.isArray((error.meta as { target?: unknown } | undefined)?.target) &&
+        Array.isArray(
+          (error.meta as { target?: unknown } | undefined)?.target,
+        ) &&
         (error.meta as { target: string[] }).target.includes('email')
       ) {
-        throw new ConflictException('An account with this email already exists.');
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
       }
       throw error;
     }
@@ -259,6 +263,7 @@ export class AuthService {
           email: user.email,
           role: user.role,
           isApproved: user.isApproved,
+          clientId: user.clientId,
         },
       },
     };
@@ -303,6 +308,7 @@ export class AuthService {
           to: user.email,
           firstName: user.firstName,
           otp,
+          clientId: user.clientId,
         });
       } catch (error) {
         this.logger.error(
@@ -370,7 +376,8 @@ export class AuthService {
 
     // Never reveal whether the email exists.
     return {
-      message: 'If this email is registered, you will receive further instructions.',
+      message:
+        'If this email is registered, you will receive further instructions.',
     };
   }
 
@@ -436,7 +443,10 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    const { valid } = await verifyPassword(dto.currentPassword, user.passwordHash);
+    const { valid } = await verifyPassword(
+      dto.currentPassword,
+      user.passwordHash,
+    );
     if (!valid) {
       throw new BadRequestException('Current password is incorrect');
     }

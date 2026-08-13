@@ -9,13 +9,7 @@ import { SessionModule } from '../session/session.module';
 import { CsrfModule } from '../csrf/csrf.module';
 
 @Module({
-  imports: [
-    UsersModule,
-    OtpModule,
-    MailModule,
-    SessionModule,
-    CsrfModule,
-  ],
+  imports: [UsersModule, OtpModule, MailModule, SessionModule, CsrfModule],
   controllers: [AuthController],
   providers: [AuthService, SessionAuthGuard],
   exports: [SessionAuthGuard],

@@ -41,6 +41,7 @@ export class UsersService {
     marketingEmails: boolean;
   }): Promise<User> {
     const referralCode = await this.generateUniqueReferralCode();
+    const clientId = await this.generateUniqueClientId();
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -50,6 +51,7 @@ export class UsersService {
           email: params.email.toLowerCase().trim(),
           passwordHash: params.passwordHash,
           ownReferralCode: referralCode,
+          clientId,
           referredBy: params.referredBy,
           role: 'USER', // never accept role from the client — see RegisterDto, it has no role field
         },
@@ -142,14 +144,13 @@ export class UsersService {
       return { message: 'User is already approved', clientId: user.clientId };
     }
 
-    const clientId = await this.generateUniqueClientId();
+    const clientId = user.clientId ?? (await this.generateUniqueClientId());
 
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         isApproved: true,
-        approvedAt: new Date(),
-        clientId,
+        ...(user.clientId ? {} : { clientId }),
       },
     });
 

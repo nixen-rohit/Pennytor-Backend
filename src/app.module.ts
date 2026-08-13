@@ -10,6 +10,7 @@ import { OtpModule } from './modules/otp/otp.module';
 import { MailModule } from './modules/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SessionModule } from './modules/session/session.module';
+import { KycModule } from './modules/kyc/kyc.module';
 import { CsrfModule } from './modules/csrf/csrf.module';
 import { CsrfGuard } from './modules/csrf/csrf.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -36,6 +37,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     OtpModule,
     MailModule,
     AuthModule,
+    KycModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
