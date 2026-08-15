@@ -71,6 +71,7 @@ export class KycRepository {
         submittedAt: null,
         reviewedBy: null,
         reviewedAt: null,
+        reviewNote: null,
       },
     });
   }
