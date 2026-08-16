@@ -34,6 +34,14 @@ export function kycRelativePath(
   return path.posix.join('kyc', applicationId, storageName);
 }
 
+/** Relative-on-disk location of a deposit screenshot, under `deposits/<id>/`. */
+export function depositRelativePath(
+  requestId: string,
+  storageName: string,
+): string {
+  return path.posix.join('deposits', requestId, storageName);
+}
+
 /**
  * Resolves a stored file to an absolute path and verifies, with the final
  * resolved path, that it stays inside the private storage root. Throws a
@@ -59,6 +67,14 @@ export function applicationDir(
   applicationId: string,
 ): string {
   return path.join(path.resolve(storageRoot), 'kyc', applicationId);
+}
+
+/** Absolute path to a deposit request's private directory. */
+export function depositDir(
+  storageRoot: string,
+  requestId: string,
+): string {
+  return path.join(path.resolve(storageRoot), 'deposits', requestId);
 }
 
 /**

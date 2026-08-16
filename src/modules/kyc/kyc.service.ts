@@ -212,6 +212,7 @@ export class KycService {
   async listApplications(query: ListApplicationsQueryDto) {
     return this.repository.list({
       status: query.status,
+      search: query.search?.trim() || undefined,
       page: query.page,
       pageSize: query.pageSize,
     });

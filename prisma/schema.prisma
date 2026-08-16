@@ -25,6 +25,7 @@ enum OtpPurpose {
   PASSWORD_RESET
   LOGIN_MFA
   KYC_SUBMIT
+  WITHDRAW_SUBMIT
 }
 
 enum AuditAction {
@@ -43,6 +44,12 @@ enum AuditAction {
   PASSWORD_CHANGED
   ACCOUNT_LOCKED
   ACCOUNT_UNLOCKED
+
+  // Admin finance decisions (actor recorded in AuditLog.userId)
+  APPROVE_DEPOSIT
+  REJECT_DEPOSIT
+  APPROVE_WITHDRAWAL
+  REJECT_WITHDRAWAL
 }
 
 enum KycApplicationStatus {
@@ -103,6 +110,10 @@ model User {
   clientId   String?   @unique
   isApproved Boolean   @default(false)
 
+  // Real-time wallet balance (INR). Credited when an admin approves a
+  // deposit request; debited on approved withdrawals.
+  balance Decimal @default(0) @db.Decimal(12, 2)
+
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
@@ -116,6 +127,9 @@ model User {
   sessions              Session[]
   auditLogs             AuditLog[]
   kycApplication        KycApplication?
+  deposits              DepositRequest[]
+  withdrawals           WithdrawalRequest[]
+  ledgerEntries         LedgerEntry[]
 
   @@index([email])
   @@map("users")
@@ -244,6 +258,118 @@ model KycFileAuditLog {
   @@map("kyc_file_audit_logs")
 }
 
+enum DepositStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+// A user-submitted fund deposit request with its single payment-screenshot.
+// The screenshot bytes live on the VPS filesystem under
+// PRIVATE_STORAGE_PATH/deposits/<requestId>/ and are only ever streamed
+// through the authenticated admin API — never served publicly.
+model DepositRequest {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount        Decimal       @db.Decimal(12, 2)
+  transactionId String
+  status        DepositStatus @default(PENDING)
+
+  reviewNote String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  submittedAt DateTime? @default(now())
+
+  originalName String
+  storageName  String
+  storagePath  String
+  mimeType     String
+  fileSize     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([submittedAt])
+  @@map("deposit_requests")
+}
+
+enum WithdrawalStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+// A user-submitted withdrawal request to their registered bank account or a
+// UPI ID. The wallet is debited ONLY when an admin approves (VERIFIED) — the
+// same transactional, idempotent pattern as deposit crediting. REJECTED
+// requires a reason, which is shown to the user.
+model WithdrawalRequest {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount      Decimal          @db.Decimal(12, 2)
+  method      String
+  destination String
+  status      WithdrawalStatus @default(PENDING)
+
+  reviewNote String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  submittedAt DateTime? @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([submittedAt])
+  @@map("withdrawal_requests")
+}
+
+// Immutable record of money that actually moved. A deposit/withdrawal REQUEST
+// is the user's ask; only an admin approval creates the corresponding ledger
+// entry (credit for deposits, debit for withdrawals) inside the same DB
+// transaction that flips the request status — the balance and the ledger can
+// never diverge. Rejections move no money and create no entry.
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerSourceType {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+model LedgerEntry {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  direction   LedgerDirection
+  amount      Decimal @db.Decimal(12, 2)
+  balanceAfter Decimal @db.Decimal(12, 2)
+
+  // Which request this entry settles (no FK: deposits and withdrawals live
+  // in different tables).
+  sourceType LedgerSourceType
+  sourceId   String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([sourceType, sourceId])
+  @@map("ledger_entries")
+}
 model UserConsent {
   id     String @id @default(uuid())
   userId String @unique
