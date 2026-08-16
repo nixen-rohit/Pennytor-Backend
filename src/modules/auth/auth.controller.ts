@@ -51,16 +51,20 @@ export class AuthController {
 
   /**
    * Session cookie: HttpOnly (JS cannot read it → token theft via XSS is
-   * impossible), SameSite=Lax (blocks cross-site delivery), Secure in
-   * production, scoped to the API path. maxAge matches the session TTL —
-   * when the cookie's lifetime ends, the server-side session has already
-   * expired, so no orphan state can linger.
+   * impossible), SameSite=Lax locally / None in production (frontend and
+   * API live on different sites on Render — Lax would never be delivered),
+   * Secure in production, scoped to the API path. maxAge matches the
+   * session TTL — when the cookie's lifetime ends, the server-side session
+   * has already expired, so no orphan state can linger.
+   *
+   * Cross-site CSRF is still covered by the CSRF token layer + Origin
+   * header check in CsrfGuard.
    */
   private sessionCookieOptions(): CookieOptions {
     return {
       httpOnly: true,
       secure: this.isProd,
-      sameSite: 'lax',
+      sameSite: this.isProd ? 'none' : 'lax',
       path: '/api',
       maxAge: this.sessionService.ttlMillis,
     };
@@ -70,7 +74,7 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: this.isProd,
-      sameSite: 'lax',
+      sameSite: this.isProd ? 'none' : 'lax',
       path: '/api',
       maxAge: CSRF_MAX_AGE,
     };
