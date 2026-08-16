@@ -11,6 +11,9 @@ import { MailModule } from './modules/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SessionModule } from './modules/session/session.module';
 import { KycModule } from './modules/kyc/kyc.module';
+import { DepositsModule } from './modules/deposits/deposits.module';
+import { WithdrawalsModule } from './modules/withdrawals/withdrawals.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { CsrfModule } from './modules/csrf/csrf.module';
 import { CsrfGuard } from './modules/csrf/csrf.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -38,6 +41,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     MailModule,
     AuthModule,
     KycModule,
+    DepositsModule,
+    WithdrawalsModule,
+    FinanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

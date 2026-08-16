@@ -12,16 +12,23 @@ export class AuditService {
    * Fire-and-forget by design: an audit-log failure should never block
    * the user-facing operation it's recording. We log locally as a fallback
    * if the DB write itself fails.
+   *
+   * Finance decisions pass an interactive-transaction client so the audit
+   * row commits atomically with the decision they record.
    */
-  async log(params: {
-    userId?: string;
-    action: AuditAction;
-    ipAddress?: string;
-    userAgent?: string;
-    metadata?: Prisma.InputJsonValue;
-  }): Promise<void> {
+  async log(
+    params: {
+      userId?: string;
+      action: AuditAction;
+      ipAddress?: string;
+      userAgent?: string;
+      metadata?: Prisma.InputJsonValue;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
     try {
-      await this.prisma.auditLog.create({
+      const client = tx ?? this.prisma;
+      await client.auditLog.create({
         data: {
           userId: params.userId,
           action: params.action,

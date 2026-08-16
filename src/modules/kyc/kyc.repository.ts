@@ -68,28 +68,48 @@ export class KycRepository {
       create: { ...data, userId },
       update: {
         ...data,
+        // A fresh submission cycle starts unsubmitted, but the previous
+        // admin decision (reviewedAt / reviewedBy / reviewNote) is KEPT so
+        // reviewers can see what happened last time the user was reviewed.
         submittedAt: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        reviewNote: null,
       },
     });
   }
 
   async list(params: {
     status?: KycApplicationStatus;
+    search?: string;
     page: number;
     pageSize: number;
   }): Promise<{ items: KycApplication[]; total: number }> {
-    const where: Prisma.KycApplicationWhereInput = params.status
-      ? { status: params.status }
-      : {};
+    const where: Prisma.KycApplicationWhereInput = {
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.search
+        ? {
+            OR: [
+              { user: { email: { contains: params.search, mode: 'insensitive' } } },
+              {
+                user: {
+                  clientId: { contains: params.search, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.kycApplication.findMany({
         where,
         include: {
-          user: { select: { firstName: true, lastName: true, email: true } },
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              clientId: true,
+            },
+          },
           _count: { select: { files: true } },
         },
         orderBy: { createdAt: 'desc' },

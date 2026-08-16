@@ -101,6 +101,24 @@ export class MailService {
     });
   }
 
+  async sendWithdrawalOtpEmail(params: {
+    to: string;
+    firstName: string;
+    otp: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('withdrawal-otp', {
+      firstName: params.firstName,
+      otp: params.otp,
+      expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 10),
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: 'Your Withdrawal OTP — Pennytor',
+      html,
+    });
+  }
+
   async sendKycApprovedEmail(params: {
     to: string;
     firstName: string;

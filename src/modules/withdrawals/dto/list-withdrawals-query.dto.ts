@@ -1,4 +1,4 @@
-import { KycApplicationStatus } from '@prisma/client';
+import { WithdrawalStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -10,10 +10,10 @@ import {
   Min,
 } from 'class-validator';
 
-export class ListApplicationsQueryDto {
+export class ListWithdrawalsQueryDto {
   @IsOptional()
-  @IsEnum(KycApplicationStatus)
-  status?: KycApplicationStatus;
+  @IsEnum(WithdrawalStatus)
+  status?: WithdrawalStatus;
 
   @IsOptional()
   @IsString()
