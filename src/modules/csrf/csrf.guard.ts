@@ -117,10 +117,13 @@ export class CsrfGuard implements CanActivate {
     }
 
     const { cookieValue } = this.csrfService.issue();
+    const isProd = process.env.NODE_ENV === 'production';
     response.cookie(CSRF_COOKIE, cookieValue, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProd,
+      // Cross-site deployments (frontend and API on different sites, e.g.
+      // Render) need SameSite=None so the browser still delivers the cookie.
+      sameSite: isProd ? 'none' : 'lax',
       path: '/api',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
