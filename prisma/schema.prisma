@@ -306,6 +306,27 @@ enum WithdrawalStatus {
   REJECTED
 }
 
+enum ContactMessageStatus {
+  NEW
+}
+
+model ContactMessage {
+  id      String              @id @default(uuid())
+  name    String
+  email   String
+  phone   String
+  service String?
+  message String
+  status  ContactMessageStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
 // A user-submitted withdrawal request to their registered bank account or a
 // UPI ID. The wallet is debited ONLY when an admin approves (VERIFIED) — the
 // same transactional, idempotent pattern as deposit crediting. REJECTED

@@ -17,6 +17,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { CsrfModule } from './modules/csrf/csrf.module';
 import { CsrfGuard } from './modules/csrf/csrf.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ContactUsModule } from './modules/contactus/contactus.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     DepositsModule,
     WithdrawalsModule,
     FinanceModule,
+    ContactUsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

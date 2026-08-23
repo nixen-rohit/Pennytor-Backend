@@ -29,6 +29,7 @@ async function bootstrap() {
   app.enableCors({
     origin: frontendUrl,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
   });
 
   app.setGlobalPrefix('api');
