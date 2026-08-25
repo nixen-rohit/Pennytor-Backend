@@ -50,6 +50,11 @@ enum AuditAction {
   REJECT_DEPOSIT
   APPROVE_WITHDRAWAL
   REJECT_WITHDRAWAL
+  APPROVE_INVESTMENT_FUND
+  REJECT_INVESTMENT_FUND
+
+  // System ROI credit (actor omitted — cron-driven)
+  INVESTMENT_ROI_CREDIT
 }
 
 enum KycApplicationStatus {
@@ -129,6 +134,8 @@ model User {
   kycApplication        KycApplication?
   deposits              DepositRequest[]
   withdrawals           WithdrawalRequest[]
+  investmentApplications InvestmentApplication[]
+  investmentRoiPayouts   InvestmentRoiPayout[]
   ledgerEntries         LedgerEntry[]
 
   @@index([email])
@@ -308,16 +315,19 @@ enum WithdrawalStatus {
 
 enum ContactMessageStatus {
   NEW
+  IN_PROGRESS
+  DONE
 }
 
 model ContactMessage {
-  id      String              @id @default(uuid())
-  name    String
-  email   String
-  phone   String
-  service String?
-  message String
-  status  ContactMessageStatus @default(NEW)
+  id        String              @id @default(uuid())
+  name      String
+  email     String
+  phone     String
+  service   String?
+  message   String
+  status    ContactMessageStatus @default(NEW)
+  reviewNote String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -356,6 +366,80 @@ model WithdrawalRequest {
   @@map("withdrawal_requests")
 }
 
+enum InvestmentScheme {
+  A
+  B
+  C
+  D
+  E
+}
+
+enum InvestmentStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+// A user-submitted investment fund application. The wallet is debited
+// IMMEDIATELY upon submission; admin approval (VERIFIED) finalizes it and
+// STARTS the ROI cycle (verifiedAt), rejection (REJECTED) refunds the wallet.
+model InvestmentApplication {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  scheme      InvestmentScheme
+  amount      Decimal          @db.Decimal(12, 2)
+  method      String
+  destination String
+  status      InvestmentStatus @default(PENDING)
+
+  reviewNote String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  submittedAt DateTime? @default(now())
+
+  // ROI cycle — set together by admin approval. verifiedAt starts both the
+  // lock-in period and monthly ROI accrual; lastRoiPaidAt is the moment up
+  // to which every elapsed month has already been credited.
+  verifiedAt   DateTime?
+  lastRoiPaidAt DateTime?
+
+  roiPayouts InvestmentRoiPayout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([submittedAt])
+  @@index([verifiedAt])
+  @@map("investment_applications")
+}
+
+// One row per credited ROI month. Immutable money trail for the auto-credit
+// job; periodStart/periodEnd make each payout auditable down to its cycle.
+model InvestmentRoiPayout {
+  id            String   @id @default(uuid())
+  applicationId String
+  application   InvestmentApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount       Decimal @db.Decimal(12, 2)
+  roiPercent   Decimal @db.Decimal(5, 2)
+  periodStart  DateTime
+  periodEnd    DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId])
+  @@index([userId, createdAt])
+  @@map("investment_roi_payouts")
+}
+
 // Immutable record of money that actually moved. A deposit/withdrawal REQUEST
 // is the user's ask; only an admin approval creates the corresponding ledger
 // entry (credit for deposits, debit for withdrawals) inside the same DB
@@ -369,6 +453,9 @@ enum LedgerDirection {
 enum LedgerSourceType {
   DEPOSIT
   WITHDRAWAL
+  WITHDRAWAL_REFUND
+  INVESTMENT_REFUND
+  INVESTMENT_ROI
 }
 
 model LedgerEntry {

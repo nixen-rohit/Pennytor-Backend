@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   UploadedFile,
   UseGuards,
@@ -18,7 +19,7 @@ import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
 
-const DEPOSIT_FILE_MAX_BYTES = 5 * 1024 * 1024;
+const DEPOSIT_FILE_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * User-side fund deposit requests. CSRF is enforced globally; ownership is
@@ -37,6 +38,13 @@ export class DepositController {
   @ApiOperation({ summary: 'List the caller deposit requests' })
   myDeposits(@CurrentUser() user: AuthUser) {
     return this.depositService.myDeposits(user.id);
+  }
+
+  @Get(':id')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Get a single deposit request by ID' })
+  async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.depositService.getDeposit(user.id, id);
   }
 
   @Post()

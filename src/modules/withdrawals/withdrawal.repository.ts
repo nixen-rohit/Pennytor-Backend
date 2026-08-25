@@ -40,6 +40,52 @@ export class WithdrawalRepository {
     });
   }
 
+  /**
+   * Atomic creation of withdrawal + wallet debit + ledger entry.
+   * Returns the created withdrawal request.
+   */
+  async createWithDebit(
+    userId: string,
+    amount: Prisma.Decimal,
+    method: string,
+    destination: string,
+    userBalance: Prisma.Decimal,
+  ): Promise<WithdrawalRequest> {
+    const [created] = await this.prisma.$transaction([
+      this.prisma.withdrawalRequest.create({
+        data: {
+          userId,
+          amount,
+          method: method as any,
+          destination,
+          submittedAt: new Date(),
+        },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { balance: { decrement: amount } },
+      }),
+      this.prisma.ledgerEntry.create({
+        data: {
+          userId,
+          direction: LedgerDirection.DEBIT,
+          amount,
+          balanceAfter: userBalance.minus(amount),
+          sourceType: LedgerSourceType.WITHDRAWAL,
+          sourceId: 'pending',
+        },
+      }),
+    ]);
+
+    // Update ledger entry with actual withdrawal ID
+    await this.prisma.ledgerEntry.updateMany({
+      where: { userId, sourceId: 'pending', sourceType: LedgerSourceType.WITHDRAWAL },
+      data: { sourceId: created.id },
+    });
+
+    return created;
+  }
+
   findById(id: string): Promise<WithdrawalWithUser | null> {
     return this.prisma.withdrawalRequest.findUnique({
       where: { id },
@@ -166,15 +212,11 @@ export class WithdrawalRepository {
     return updated;
   }
 
-  /**
-   * Production approve path: CONDITIONAL status flip (only a PENDING /
-   * UNDER_REVIEW row matches), fresh balance guard, wallet debit, ledger
-   * entry and audit log in one transaction — atomic and race-safe.
-   */
-  async approve(
+/** Production approve path: conditional flip to VERIFIED (no debit - already done at creation). */
+  async approveStatusOnly(
     row: WithdrawalRequest,
     adminId: string,
-  ): Promise<{ conflicted: boolean; insufficient: boolean }> {
+  ): Promise<{ conflicted: boolean }> {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.withdrawalRequest.updateMany({
         where: {
@@ -188,31 +230,7 @@ export class WithdrawalRepository {
           reviewNote: null,
         },
       });
-      if (count !== 1) return { conflicted: true, insufficient: false };
-
-      const user = await tx.user.findUnique({
-        where: { id: row.userId },
-        select: { balance: true },
-      });
-      if (!user || user.balance.lt(row.amount)) {
-        return { conflicted: false, insufficient: true };
-      }
-
-      const updated = await tx.user.update({
-        where: { id: row.userId },
-        data: { balance: { decrement: row.amount } },
-        select: { balance: true },
-      });
-      await tx.ledgerEntry.create({
-        data: {
-          userId: row.userId,
-          direction: LedgerDirection.DEBIT,
-          amount: row.amount,
-          balanceAfter: updated.balance,
-          sourceType: LedgerSourceType.WITHDRAWAL,
-          sourceId: row.id,
-        },
-      });
+      if (count !== 1) return { conflicted: true };
       await this.audit.log(
         {
           userId: adminId,
@@ -227,11 +245,11 @@ export class WithdrawalRepository {
         },
         tx,
       );
-      return { conflicted: false, insufficient: false };
+      return { conflicted: false };
     });
   }
 
-  /** Production reject path: conditional flip to REJECTED with the reason + audit. */
+  /** Production reject path: conditional flip to REJECTED with the reason + audit + refund. */
   async reject(
     row: WithdrawalRequest,
     adminId: string,
@@ -251,6 +269,26 @@ export class WithdrawalRepository {
         },
       });
       if (count !== 1) return { conflicted: true };
+
+      // Refund the wallet
+      const user = await tx.user.update({
+        where: { id: row.userId },
+        data: { balance: { increment: row.amount } },
+        select: { balance: true },
+      });
+
+      // Ledger entry for refund (CREDIT)
+      await tx.ledgerEntry.create({
+        data: {
+          userId: row.userId,
+          direction: LedgerDirection.CREDIT,
+          amount: row.amount,
+          balanceAfter: user.balance,
+          sourceType: LedgerSourceType.WITHDRAWAL_REFUND,
+          sourceId: row.id,
+        },
+      });
+
       await this.audit.log(
         {
           userId: adminId,
@@ -262,6 +300,7 @@ export class WithdrawalRepository {
             previousStatus: row.status,
             newStatus: WithdrawalStatus.REJECTED,
             reason,
+            refunded: true,
           },
         },
         tx,

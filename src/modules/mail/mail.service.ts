@@ -119,6 +119,34 @@ export class MailService {
     });
   }
 
+  async sendInvestmentFundOtpEmail(params: {
+    to: string;
+    firstName: string;
+    otp: string;
+    scheme: string;
+    investmentAmount: string;
+    schemeRange?: string;
+    lockInPeriod: string;
+    roi: number;
+  }): Promise<void> {
+    const html = this.renderTemplate('investment-fund-otp', {
+      firstName: params.firstName,
+      otp: params.otp,
+      scheme: params.scheme,
+      investmentAmount: params.investmentAmount,
+      schemeRange: params.schemeRange ?? '',
+      lockInPeriod: params.lockInPeriod,
+      roi: params.roi,
+      expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 10),
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: 'Your Investment Fund OTP — Pennytor',
+      html,
+    });
+  }
+
   async sendKycApprovedEmail(params: {
     to: string;
     firstName: string;
@@ -198,6 +226,32 @@ export class MailService {
     await this.send({
       to: params.to,
       subject: '📈 Investment Confirmed — Pennytor',
+      html,
+    });
+  }
+
+  /** Sent when an admin approves an investment fund application — a copy of
+   * the review data: plan, amount, monthly ROI, cycle start / payout dates. */
+  async sendInvestmentFundApprovedEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    amount: string;
+    monthlyRoi: string;
+    roiPercent: string;
+    lockInPeriod: string;
+    cycleStartDate: string;
+    nextPayoutDate: string;
+    maturityDate: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('investment-fund-approved', {
+      ...params,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/dashboard`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '🚀 Investment Approved — Your ROI Cycle Has Started',
       html,
     });
   }

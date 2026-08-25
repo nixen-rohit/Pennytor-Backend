@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">Investment Fund Verification</h1>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Use the OTP below to confirm your investment fund application on Pennytor. This code expires in {{expiryMinutes}} minutes.
+        </p>
+
+        <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #f59e0b;">
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #92400e; font-weight: 600;">Scheme:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{scheme}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #92400e; font-weight: 600;">Your Investment Amount:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{investmentAmount}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #92400e; font-weight: 600;">Scheme Range:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{schemeRange}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #92400e; font-weight: 600;">Lock-in Period:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{lockInPeriod}}</span>
+          </div>
+          <div>
+            <span style="font-size: 13px; color: #92400e; font-weight: 600;">Monthly ROI:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{roi}}%</span>
+          </div>
+        </div>
+
+        <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+          <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111827; margin: 0;">{{otp}}</p>
+        </div>
+
+        <p style="color: #dc2626; font-size: 13px; text-align: center; font-weight: 600;">
+          ⚠️ Do not share this OTP with anyone.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

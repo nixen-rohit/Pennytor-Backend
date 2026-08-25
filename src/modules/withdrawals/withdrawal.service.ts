@@ -41,6 +41,20 @@ export class WithdrawalService {
     });
   }
 
+  /** Verifies password and sends OTP if valid. */
+  async verifyPasswordAndSendOtp(userId: string, password: string) {
+    const user = await this.repository.getUserWithPasswordHash(userId);
+    if (!user) throw new NotFoundException('User account not found');
+
+    const { valid } = await verifyPassword(password, user.passwordHash);
+    if (!valid) {
+      throw new BadRequestException('Password is incorrect');
+    }
+
+    await this.sendOtp(userId);
+    return { success: true };
+  }
+
   async getBalance(userId: string) {
     return this.repository.getBalance(userId);
   }
@@ -59,7 +73,7 @@ export class WithdrawalService {
   /**
    * Creates a PENDING withdrawal request. The OTP and the account password
    * are both verified server-side, and the wallet must cover the amount.
-   * The balance is NOT debited here — only on admin approval.
+   * The balance is debited IMMEDIATELY — refunded on admin rejection.
    */
   async createWithdrawal(userId: string, dto: CreateWithdrawalDto) {
     const user = await this.repository.getUserWithPasswordHash(userId);
@@ -82,12 +96,14 @@ export class WithdrawalService {
 
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, dto.otp);
 
-    const created = await this.repository.create(userId, {
+    const created = await this.repository.createWithDebit(
+      userId,
       amount,
-      method: dto.method,
-      destination: dto.destination,
-      submittedAt: new Date(),
-    });
+      dto.method,
+      dto.destination,
+      user.balance,
+    );
+
     return {
       id: created.id,
       status: created.status,
@@ -198,21 +214,17 @@ export class WithdrawalService {
 
   /**
    * Approve a PENDING/UNDER_REVIEW withdrawal: atomic, race-safe
-   * (conditional flip + fresh balance guard + debit + ledger + audit).
+   * Money already debited at creation; this just flips status to VERIFIED.
    */
   async approve(id: string, adminId: string) {
     const row = await this.repository.findByIdPlain(id);
     if (!row) throw new NotFoundException('Withdrawal request not found');
 
-    const result = await this.repository.approve(row, adminId);
+    // Use a simpler approve that doesn't debit again
+    const result = await this.repository.approveStatusOnly(row, adminId);
     if (result.conflicted) {
       throw new ConflictException(
         'Withdrawal already processed; only pending withdrawals can be approved',
-      );
-    }
-    if (result.insufficient) {
-      throw new BadRequestException(
-        'Insufficient wallet balance to approve this withdrawal',
       );
     }
     return { id, status: WithdrawalStatus.VERIFIED };

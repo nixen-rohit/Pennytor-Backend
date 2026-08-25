@@ -41,7 +41,7 @@ export class DepositService {
       config.get<string>('PRIVATE_STORAGE_PATH', '/var/private-storage'),
     );
     this.maxFileBytes =
-      Math.max(1, config.get<number>('DEPOSIT_UPLOAD_MAX_MB', 5)) * 1024 * 1024;
+      Math.max(1, config.get<number>('DEPOSIT_UPLOAD_MAX_MB', 2)) * 1024 * 1024;
   }
 
   // ---------------------------------------------------------------- user
@@ -103,6 +103,22 @@ export class DepositService {
     return {
       balance,
       items: rows.map((r) => this.toUserView(r)),
+    };
+  }
+
+  async getDeposit(userId: string, id: string) {
+    const row = await this.repository.findById(id);
+    if (!row || row.userId !== userId) {
+      throw new NotFoundException('Deposit request not found');
+    }
+    return {
+      id: row.id,
+      status: row.status,
+      amount: row.amount.toString(),
+      createdAt: row.createdAt,
+      transactionId: row.transactionId,
+      reviewNote:
+        row.status === DepositStatus.REJECTED ? row.reviewNote : null,
     };
   }
 
