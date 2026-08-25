@@ -6,6 +6,7 @@ import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
+import { VerifyPasswordDto } from './dto/verify-password.dto';
 
 /**
  * User-side withdrawal requests. CSRF is enforced globally; ownership is
@@ -24,6 +25,14 @@ export class WithdrawalController {
   @ApiOperation({ summary: 'Send the withdrawal confirmation OTP' })
   sendOtp(@CurrentUser() user: AuthUser) {
     return this.withdrawalService.sendOtp(user.id);
+  }
+
+  /** Verifies password and sends OTP if valid. */
+  @Post('verify-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Verify password and send OTP' })
+  verifyPassword(@CurrentUser() user: AuthUser, @Body() dto: VerifyPasswordDto) {
+    return this.withdrawalService.verifyPasswordAndSendOtp(user.id, dto.password);
   }
 
   @Get('mine')

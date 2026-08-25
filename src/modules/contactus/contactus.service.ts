@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateContactMessageDto } from './dto/create-contact-message.dto';
+import { UpdateContactStatusDto } from './dto/update-contact-status.dto';
 
 @Injectable()
 export class ContactUsService {
@@ -44,5 +45,44 @@ export class ContactUsService {
         totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     };
+  }
+
+  async get(id: string) {
+    const message = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
+    if (!message) {
+      throw new NotFoundException('Contact message not found');
+    }
+    return message;
+  }
+
+  async updateStatus(id: string, dto: UpdateContactStatusDto) {
+    const existing = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Contact message not found');
+    }
+
+    return this.prisma.contactMessage.update({
+      where: { id },
+      data: { 
+        status: dto.status,
+        reviewNote: dto.note || null,
+      },
+    });
+  }
+
+  async delete(id: string) {
+    const existing = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Contact message not found');
+    }
+
+    await this.prisma.contactMessage.delete({ where: { id } });
+    return { success: true };
   }
 }

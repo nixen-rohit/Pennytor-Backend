@@ -104,8 +104,6 @@ export class KycRepository {
         include: {
           user: {
             select: {
-              firstName: true,
-              lastName: true,
               email: true,
               clientId: true,
             },
