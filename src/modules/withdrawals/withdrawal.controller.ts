@@ -19,20 +19,21 @@ import { VerifyPasswordDto } from './dto/verify-password.dto';
 export class WithdrawalController {
   constructor(private readonly withdrawalService: WithdrawalService) {}
 
-  /** Emails a 6-digit OTP for the withdrawal submission. */
-  @Post('otp')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Send the withdrawal confirmation OTP' })
-  sendOtp(@CurrentUser() user: AuthUser) {
-    return this.withdrawalService.sendOtp(user.id);
-  }
-
-  /** Verifies password and sends OTP if valid. */
+  /**
+   * Verifies password and sends OTP if valid. This is the ONLY way an
+   * OTP email goes out — there is deliberately no passwordless /otp route.
+   */
   @Post('verify-password')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Verify password and send OTP' })
-  verifyPassword(@CurrentUser() user: AuthUser, @Body() dto: VerifyPasswordDto) {
-    return this.withdrawalService.verifyPasswordAndSendOtp(user.id, dto.password);
+  verifyPassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: VerifyPasswordDto,
+  ) {
+    return this.withdrawalService.verifyPasswordAndSendOtp(
+      user.id,
+      dto.password,
+    );
   }
 
   @Get('mine')

@@ -79,7 +79,11 @@ export class WithdrawalRepository {
 
     // Update ledger entry with actual withdrawal ID
     await this.prisma.ledgerEntry.updateMany({
-      where: { userId, sourceId: 'pending', sourceType: LedgerSourceType.WITHDRAWAL },
+      where: {
+        userId,
+        sourceId: 'pending',
+        sourceType: LedgerSourceType.WITHDRAWAL,
+      },
       data: { sourceId: created.id },
     });
 
@@ -142,7 +146,11 @@ export class WithdrawalRepository {
       ...(params.search
         ? {
             OR: [
-              { user: { email: { contains: params.search, mode: 'insensitive' } } },
+              {
+                user: {
+                  email: { contains: params.search, mode: 'insensitive' },
+                },
+              },
               {
                 user: {
                   clientId: { contains: params.search, mode: 'insensitive' },
@@ -212,7 +220,7 @@ export class WithdrawalRepository {
     return updated;
   }
 
-/** Production approve path: conditional flip to VERIFIED (no debit - already done at creation). */
+  /** Production approve path: conditional flip to VERIFIED (no debit - already done at creation). */
   async approveStatusOnly(
     row: WithdrawalRequest,
     adminId: string,
@@ -221,7 +229,9 @@ export class WithdrawalRepository {
       const { count } = await tx.withdrawalRequest.updateMany({
         where: {
           id: row.id,
-          status: { in: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW] },
+          status: {
+            in: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW],
+          },
         },
         data: {
           status: WithdrawalStatus.VERIFIED,
@@ -259,7 +269,9 @@ export class WithdrawalRepository {
       const { count } = await tx.withdrawalRequest.updateMany({
         where: {
           id: row.id,
-          status: { in: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW] },
+          status: {
+            in: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW],
+          },
         },
         data: {
           status: WithdrawalStatus.REJECTED,

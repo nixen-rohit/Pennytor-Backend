@@ -38,7 +38,9 @@ export class WithdrawalAdminController {
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({ summary: 'List withdrawal requests (filter by status/search)' })
+  @ApiOperation({
+    summary: 'List withdrawal requests (filter by status/search)',
+  })
   listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
     return this.withdrawalService.listWithdrawals(query);
   }
@@ -73,7 +75,9 @@ export class WithdrawalAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Approve a withdrawal (debits wallet + ledger, audited)' })
+  @ApiOperation({
+    summary: 'Approve a withdrawal (debits wallet + ledger, audited)',
+  })
   approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.withdrawalService.approve(id, admin.id);
   }
