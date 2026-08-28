@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,8 +11,6 @@ import {
   InvestmentApplication,
   InvestmentScheme,
   InvestmentStatus,
-  LedgerDirection,
-  LedgerSourceType,
   Prisma,
 } from '@prisma/client';
 import { OtpService } from '../otp/otp.service';
@@ -22,11 +22,13 @@ import {
   addMonths,
   wholeMonthsBetween,
 } from './investment-fund.repository';
-import { PrismaService } from '../../database/prisma.service';
 import { CreateInvestmentApplicationDto } from './dto/investment-fund.dto';
 
 /** Every scheme carries a fixed 3-year lock-in. */
 const LOCK_IN_MONTHS = 36;
+
+/** Max wrong-password verifications per user per calendar day. */
+const MAX_DAILY_FAILED_VERIFICATIONS = 5;
 
 /** ₹1,50,000.00 style Indian formatting for email copies. */
 function inr(value: Prisma.Decimal | string): string {
@@ -50,12 +52,16 @@ function formatDate(d: Date): string {
 @Injectable()
 export class InvestmentFundService {
   private readonly logger = new Logger(InvestmentFundService.name);
+  /** userId -> { day: 'YYYY-MM-DD', count } — resets each calendar day. */
+  private readonly failedVerifications = new Map<
+    string,
+    { day: string; count: number }
+  >();
 
   constructor(
     private readonly repository: InvestmentFundRepository,
     private readonly otpService: OtpService,
     private readonly mailService: MailService,
-    private readonly prisma: PrismaService,
   ) {}
 
   async getSchemes() {
@@ -161,16 +167,45 @@ export class InvestmentFundService {
     scheme: string,
     amount?: string,
   ) {
+    this.assertAttemptsAvailable(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
     const { valid } = await verifyPassword(password, user.passwordHash);
     if (!valid) {
-      throw new BadRequestException('Password is incorrect');
+      const remaining = this.registerFailure(userId);
+      throw new BadRequestException(
+        `Password is incorrect. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining today.`,
+      );
     }
 
+    this.failedVerifications.delete(userId);
     await this.sendOtp(userId, scheme, amount);
     return { success: true };
+  }
+
+  private assertAttemptsAvailable(userId: string) {
+    const rec = this.failedVerifications.get(userId);
+    if (
+      rec &&
+      rec.day === new Date().toISOString().slice(0, 10) &&
+      rec.count >= MAX_DAILY_FAILED_VERIFICATIONS
+    ) {
+      throw new HttpException(
+        'Too many incorrect password attempts today. Please try again tomorrow or reset your password.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  /** Records a failed verification and returns attempts left today. */
+  private registerFailure(userId: string): number {
+    const day = new Date().toISOString().slice(0, 10);
+    const rec = this.failedVerifications.get(userId);
+    const next = rec && rec.day === day ? rec.count + 1 : 1;
+    this.failedVerifications.set(userId, { day, count: next });
+    return Math.max(0, MAX_DAILY_FAILED_VERIFICATIONS - next);
   }
 
   async createApplication(userId: string, dto: CreateInvestmentApplicationDto) {
@@ -200,65 +235,41 @@ export class InvestmentFundService {
       );
     }
 
-    if (amount.gt(user.balance)) {
-      throw new BadRequestException(
-        'Insufficient wallet balance for this investment',
-      );
-    }
-
+    // Verify password
     const { valid } = await verifyPassword(dto.password, user.passwordHash);
     if (!valid) {
       throw new BadRequestException('Password is incorrect');
     }
 
+    // Verify OTP
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, dto.otp);
 
-    // Check if user already has an active application for this scheme
-    const existingApplication = await this.repository.findActiveByUserAndScheme(
-      userId,
-      dto.scheme,
-    );
-    if (existingApplication) {
-      const schemeData = (await this.getSchemes()).find(
-        (s) => s.scheme === dto.scheme,
-      );
-      const lockInYears = schemeData?.lockInPeriod || '3 Years';
-      throw new BadRequestException(
-        `You already have an active ${dto.scheme} scheme application. You are eligible again after ${lockInYears} when the current scheme completes.`,
-      );
+    // Atomic: duplicate check + application creation + wallet debit + ledger
+    try {
+      const result = await this.repository.createWithWalletDebit(userId, {
+        scheme: dto.scheme,
+        amount,
+      });
+      return result;
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === 'ACTIVE_APPLICATION_EXISTS') {
+          const schemeData = (await this.getSchemes()).find(
+            (s) => s.scheme === dto.scheme,
+          );
+          const lockInYears = schemeData?.lockInPeriod || '3 Years';
+          throw new BadRequestException(
+            `You already have an active ${dto.scheme} scheme application. You are eligible again after ${lockInYears} when the current scheme completes.`,
+          );
+        }
+        if (err.message === 'INSUFFICIENT_BALANCE') {
+          throw new BadRequestException(
+            'Insufficient wallet balance for this investment',
+          );
+        }
+      }
+      throw err;
     }
-
-    const created = await this.repository.create(userId, {
-      scheme: dto.scheme,
-      amount,
-      method: 'investment-fund',
-      destination: `Scheme ${dto.scheme}`,
-      submittedAt: new Date(),
-    });
-
-    // Debit wallet
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: { decrement: amount } },
-      }),
-      this.prisma.ledgerEntry.create({
-        data: {
-          userId,
-          direction: LedgerDirection.DEBIT,
-          amount,
-          balanceAfter: user.balance.minus(amount),
-          sourceType: LedgerSourceType.WITHDRAWAL,
-          sourceId: created.id,
-        },
-      }),
-    ]);
-
-    return {
-      id: created.id,
-      status: created.status,
-      amount: created.amount.toString(),
-    };
   }
 
   /**

@@ -19,6 +19,7 @@ import { CsrfGuard } from './modules/csrf/csrf.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ContactUsModule } from './modules/contactus/contactus.module';
 import { InvestmentFundModule } from './modules/investment-fund/investment-fund.module';
+import { SIPForChildModule } from './modules/sip-for-child/sip-for-child.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { InvestmentFundModule } from './modules/investment-fund/investment-fund.
     FinanceModule,
     ContactUsModule,
     InvestmentFundModule,
+    SIPForChildModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

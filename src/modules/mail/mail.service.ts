@@ -256,6 +256,91 @@ export class MailService {
     });
   }
 
+  /** OTP verification email for SIP For Child application. */
+  async sendSipForChildOtpEmail(params: {
+    to: string;
+    firstName: string;
+    otp: string;
+    scheme: string;
+    monthlyPremium: string;
+    duration: string;
+    annualReturn: number;
+  }): Promise<void> {
+    const html = this.renderTemplate('sip-for-child-otp', {
+      firstName: params.firstName,
+      otp: params.otp,
+      scheme: params.scheme,
+      monthlyPremium: params.monthlyPremium,
+      duration: params.duration,
+      annualReturn: params.annualReturn,
+      expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 5),
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '🎓 SIP For Child Verification — Pennytor',
+      html,
+    });
+  }
+
+  /** Sent when admin approves a SIP For Child application. */
+  async sendSipForChildApprovedEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    monthlyPremium: string;
+    duration: string;
+    totalMonths: number;
+    annualReturn: number;
+    fundValue: string;
+    cycleStartDate: string;
+    firstPremiumDue: string;
+    maturityDate: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('sip-for-child-approved', {
+      ...params,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/investment/all-schemes/sip-for-child/progress`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '🎓 SIP For Child Approved — Start Paying Premiums',
+      html,
+    });
+  }
+
+  /** Confirmation after each SIP For Child monthly premium is paid. */
+  async sendSipForChildPremiumPaidEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    amountPaid: string;
+    monthNumber: number;
+    totalMonths: number;
+    paymentDate: string;
+    isAdvance: boolean;
+    totalPaid: string;
+    monthsRemaining: number;
+    nextPaymentDue: string;
+    monthsPaid: number;
+  }): Promise<void> {
+    const progressPercent = Math.min(
+      100,
+      Math.round((params.monthsPaid / params.totalMonths) * 100),
+    );
+    const html = this.renderTemplate('sip-for-child-premium-paid', {
+      ...params,
+      progressPercent,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/investment/all-schemes/sip-for-child/progress`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: `✅ SIP Premium ${params.monthNumber}/${params.totalMonths} Paid — Pennytor`,
+      html,
+    });
+  }
+
   private async send(params: {
     to: string;
     subject: string;

@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,9 +15,17 @@ import { verifyPassword } from '../../common/utils/password.util';
 import { WithdrawalRepository } from './withdrawal.repository';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 
+/** Max wrong-password verifications per user per calendar day. */
+const MAX_DAILY_FAILED_VERIFICATIONS = 5;
+
 @Injectable()
 export class WithdrawalService {
   private readonly logger = new Logger(WithdrawalService.name);
+  /** userId -> { day: 'YYYY-MM-DD', count } — resets each calendar day. */
+  private readonly failedVerifications = new Map<
+    string,
+    { day: string; count: number }
+  >();
 
   constructor(
     private readonly repository: WithdrawalRepository,
@@ -41,18 +51,54 @@ export class WithdrawalService {
     });
   }
 
-  /** Verifies password and sends OTP if valid. */
+  /**
+   * Verifies password and sends OTP if valid. Wrong passwords are rate
+   * limited to MAX_DAILY_FAILED_VERIFICATIONS per user per day.
+   */
   async verifyPasswordAndSendOtp(userId: string, password: string) {
+    this.assertAttemptsAvailable(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
     const { valid } = await verifyPassword(password, user.passwordHash);
     if (!valid) {
-      throw new BadRequestException('Password is incorrect');
+      const remaining = this.registerFailure(userId);
+      throw new BadRequestException(
+        `Password is incorrect. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining today.`,
+      );
     }
 
+    this.failedVerifications.delete(userId);
     await this.sendOtp(userId);
     return { success: true };
+  }
+
+  private assertAttemptsAvailable(userId: string) {
+    const rec = this.failedVerifications.get(userId);
+    if (
+      rec &&
+      rec.day === this.today() &&
+      rec.count >= MAX_DAILY_FAILED_VERIFICATIONS
+    ) {
+      throw new HttpException(
+        'Too many incorrect password attempts today. Please try again tomorrow or reset your password.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  /** Records a failed verification and returns attempts left today. */
+  private registerFailure(userId: string): number {
+    const day = this.today();
+    const rec = this.failedVerifications.get(userId);
+    const next = rec && rec.day === day ? rec.count + 1 : 1;
+    this.failedVerifications.set(userId, { day, count: next });
+    return Math.max(0, MAX_DAILY_FAILED_VERIFICATIONS - next);
+  }
+
+  private today(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 
   async getBalance(userId: string) {
@@ -184,8 +230,7 @@ export class WithdrawalService {
       );
     }
 
-    const effectiveNote =
-      status === WithdrawalStatus.REJECTED ? note : null;
+    const effectiveNote = status === WithdrawalStatus.REJECTED ? note : null;
 
     // Approving debits the wallet exactly once: if the request was already
     // VERIFIED the transition did not happen, so no double debit.

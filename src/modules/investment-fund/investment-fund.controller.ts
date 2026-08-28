@@ -41,13 +41,6 @@ export class InvestmentFundController {
     );
   }
 
-  @Post('otp')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Send OTP for investment application' })
-  sendOtp(@CurrentUser() user: AuthUser) {
-    return this.investmentFundService.sendOtp(user.id);
-  }
-
   @Post('apply')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Submit investment fund application' })

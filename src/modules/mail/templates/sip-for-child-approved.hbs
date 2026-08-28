@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">🎓 SIP For Child Approved</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">Start paying monthly premiums to grow your child's fund</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Great news! Your SIP For Child application has been reviewed and approved.
+          Your monthly premium payments can now begin.
+        </p>
+
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #22c55e;">
+          <table style="width: 100%; font-size: 14px;">
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Plan</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{planName}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Monthly Premium</td>
+              <td style="color: #15803d; font-weight: bold; text-align: right; padding-bottom: 8px;">₹{{monthlyPremium}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Duration</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{duration}} ({{totalMonths}} months)</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Assumed Annual Return</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{annualReturn}}%</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Projected Fund Value</td>
+              <td style="color: #15803d; font-weight: bold; text-align: right; padding-bottom: 8px;">₹{{fundValue}}</td>
+            </tr>
+            <tr>
+              <td colspan="2"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 8px 0;" /></td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-top: 8px; padding-bottom: 8px;">Cycle Started</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-top: 8px; padding-bottom: 8px;">{{cycleStartDate}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">First Premium Due</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{firstPremiumDue}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280;"><strong>Maturity Date</strong></td>
+              <td style="color: #111827; font-weight: bold; text-align: right;">{{maturityDate}}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #fef3c7; border-radius: 8px; padding: 12px 16px; margin: 16px 0; border: 1px solid #f59e0b;">
+          <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.5;">
+            <strong>⚠️ Important:</strong> You can miss up to 3 monthly premiums. If you miss 4 consecutive payments, your SIP will be auto-rejected and any paid premiums will be refunded to your wallet.
+          </p>
+        </div>
+
+        <p style="text-align: center; margin: 28px 0;">
+          <a href="{{dashboardLink}}" style="display: inline-block; background: #7c3aed; color: #ffffff; text-decoration: none; padding: 12px 36px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+            Pay First Premium
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
