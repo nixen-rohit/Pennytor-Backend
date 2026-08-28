@@ -11,8 +11,6 @@ import {
   InvestmentApplication,
   InvestmentScheme,
   InvestmentStatus,
-  LedgerDirection,
-  LedgerSourceType,
   Prisma,
 } from '@prisma/client';
 import { OtpService } from '../otp/otp.service';
@@ -24,7 +22,6 @@ import {
   addMonths,
   wholeMonthsBetween,
 } from './investment-fund.repository';
-import { PrismaService } from '../../database/prisma.service';
 import { CreateInvestmentApplicationDto } from './dto/investment-fund.dto';
 
 /** Every scheme carries a fixed 3-year lock-in. */
@@ -65,7 +62,6 @@ export class InvestmentFundService {
     private readonly repository: InvestmentFundRepository,
     private readonly otpService: OtpService,
     private readonly mailService: MailService,
-    private readonly prisma: PrismaService,
   ) {}
 
   async getSchemes() {
@@ -239,65 +235,41 @@ export class InvestmentFundService {
       );
     }
 
-    if (amount.gt(user.balance)) {
-      throw new BadRequestException(
-        'Insufficient wallet balance for this investment',
-      );
-    }
-
+    // Verify password
     const { valid } = await verifyPassword(dto.password, user.passwordHash);
     if (!valid) {
       throw new BadRequestException('Password is incorrect');
     }
 
+    // Verify OTP
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, dto.otp);
 
-    // Check if user already has an active application for this scheme
-    const existingApplication = await this.repository.findActiveByUserAndScheme(
-      userId,
-      dto.scheme,
-    );
-    if (existingApplication) {
-      const schemeData = (await this.getSchemes()).find(
-        (s) => s.scheme === dto.scheme,
-      );
-      const lockInYears = schemeData?.lockInPeriod || '3 Years';
-      throw new BadRequestException(
-        `You already have an active ${dto.scheme} scheme application. You are eligible again after ${lockInYears} when the current scheme completes.`,
-      );
+    // Atomic: duplicate check + application creation + wallet debit + ledger
+    try {
+      const result = await this.repository.createWithWalletDebit(userId, {
+        scheme: dto.scheme,
+        amount,
+      });
+      return result;
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === 'ACTIVE_APPLICATION_EXISTS') {
+          const schemeData = (await this.getSchemes()).find(
+            (s) => s.scheme === dto.scheme,
+          );
+          const lockInYears = schemeData?.lockInPeriod || '3 Years';
+          throw new BadRequestException(
+            `You already have an active ${dto.scheme} scheme application. You are eligible again after ${lockInYears} when the current scheme completes.`,
+          );
+        }
+        if (err.message === 'INSUFFICIENT_BALANCE') {
+          throw new BadRequestException(
+            'Insufficient wallet balance for this investment',
+          );
+        }
+      }
+      throw err;
     }
-
-    const created = await this.repository.create(userId, {
-      scheme: dto.scheme,
-      amount,
-      method: 'investment-fund',
-      destination: `Scheme ${dto.scheme}`,
-      submittedAt: new Date(),
-    });
-
-    // Debit wallet
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: { decrement: amount } },
-      }),
-      this.prisma.ledgerEntry.create({
-        data: {
-          userId,
-          direction: LedgerDirection.DEBIT,
-          amount,
-          balanceAfter: user.balance.minus(amount),
-          sourceType: LedgerSourceType.WITHDRAWAL,
-          sourceId: created.id,
-        },
-      }),
-    ]);
-
-    return {
-      id: created.id,
-      status: created.status,
-      amount: created.amount.toString(),
-    };
   }
 
   /**

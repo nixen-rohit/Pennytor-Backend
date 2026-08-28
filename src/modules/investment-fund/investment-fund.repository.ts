@@ -64,6 +64,87 @@ export class InvestmentFundRepository {
     });
   }
 
+  /**
+   * Atomic: duplicate check + application creation + wallet debit + ledger entry.
+   * Prevents TOCTOU race conditions where two concurrent requests could both
+   * pass the balance/duplicate check and create duplicate applications or
+   * overdraw the wallet.
+   */
+  async createWithWalletDebit(
+    userId: string,
+    data: {
+      scheme: InvestmentScheme;
+      amount: Prisma.Decimal;
+    },
+  ): Promise<{ id: string; status: string; amount: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Duplicate check inside transaction
+      const existing = await tx.investmentApplication.findFirst({
+        where: {
+          userId,
+          scheme: data.scheme,
+          status: {
+            in: [
+              InvestmentStatus.PENDING,
+              InvestmentStatus.UNDER_REVIEW,
+              InvestmentStatus.VERIFIED,
+            ],
+          },
+        },
+      });
+      if (existing) {
+        throw new Error('ACTIVE_APPLICATION_EXISTS');
+      }
+
+      // 2. Re-check wallet balance inside transaction (prevents TOCTOU)
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true },
+      });
+      if (!user || user.balance.lessThan(data.amount)) {
+        throw new Error('INSUFFICIENT_BALANCE');
+      }
+
+      // 3. Create application
+      const created = await tx.investmentApplication.create({
+        data: {
+          userId,
+          scheme: data.scheme,
+          amount: data.amount,
+          method: 'investment-fund',
+          destination: `Scheme ${data.scheme}`,
+          submittedAt: new Date(),
+          status: InvestmentStatus.PENDING,
+        },
+      });
+
+      // 4. Debit wallet
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: { balance: { decrement: data.amount } },
+        select: { balance: true },
+      });
+
+      // 5. Ledger entry with correct balanceAfter
+      await tx.ledgerEntry.create({
+        data: {
+          userId,
+          direction: LedgerDirection.DEBIT,
+          amount: data.amount,
+          balanceAfter: updatedUser.balance,
+          sourceType: LedgerSourceType.WITHDRAWAL,
+          sourceId: created.id,
+        },
+      });
+
+      return {
+        id: created.id,
+        status: created.status,
+        amount: created.amount.toString(),
+      };
+    });
+  }
+
   findById(id: string): Promise<Prisma.InvestmentApplicationGetPayload<{
     include: {
       user: {

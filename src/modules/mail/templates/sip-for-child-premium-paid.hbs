@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">✅ Premium Paid Successfully</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">SIP For Child — Monthly Payment</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Your monthly SIP premium has been successfully paid. Here are the details:
+        </p>
+
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #22c55e;">
+          <table style="width: 100%; font-size: 14px;">
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Plan</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{planName}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Amount Paid</td>
+              <td style="color: #15803d; font-weight: bold; text-align: right; padding-bottom: 8px;">₹{{amountPaid}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Month Number</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{monthNumber}} / {{totalMonths}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Payment Date</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{paymentDate}}</td>
+            </tr>
+            {{#if isAdvance}}
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Type</td>
+              <td style="color: #7c3aed; font-weight: bold; text-align: right; padding-bottom: 8px;">Advance Payment</td>
+            </tr>
+            {{/if}}
+            <tr>
+              <td colspan="2"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 8px 0;" /></td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-top: 8px;">Total Paid</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-top: 8px;">₹{{totalPaid}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Months Remaining</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{monthsRemaining}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280;"><strong>Next Payment Due</strong></td>
+              <td style="color: #111827; font-weight: bold; text-align: right;">{{nextPaymentDue}}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Progress bar -->
+        <div style="margin: 20px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+            <span>Progress</span>
+            <span>{{progressPercent}}%</span>
+          </div>
+          <div style="background: #e5e7eb; border-radius: 999px; height: 8px; overflow: hidden;">
+            <div style="background: linear-gradient(to right, #7c3aed, #22c55e); height: 100%; width: {{progressPercent}}%; border-radius: 999px;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-top: 4px;">
+            <span>{{monthsPaid}} paid</span>
+            <span>{{monthsRemaining}} remaining</span>
+          </div>
+        </div>
+
+        <p style="text-align: center; margin: 28px 0;">
+          <a href="{{dashboardLink}}" style="display: inline-block; background: #7c3aed; color: #ffffff; text-decoration: none; padding: 12px 36px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+            View Progress
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
