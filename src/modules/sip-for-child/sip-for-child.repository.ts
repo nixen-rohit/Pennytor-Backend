@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma, SIPPlanId, SIPStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -304,7 +304,7 @@ export class SIPForChildRepository {
         },
       });
       if (existingPremium) {
-        throw new Error('Premium for this month has already been paid');
+        throw new ConflictException('Premium for this month has already been paid');
       }
 
       // Re-check application status inside the transaction (race: pay after reject)
@@ -313,7 +313,7 @@ export class SIPForChildRepository {
         select: { status: true },
       });
       if (!appCheck || appCheck.status !== SIPStatus.VERIFIED) {
-        throw new Error('Application is no longer active');
+        throw new BadRequestException('Application is no longer active');
       }
 
       // Re-check wallet balance inside the transaction (prevents TOCTOU)
@@ -322,7 +322,7 @@ export class SIPForChildRepository {
         select: { balance: true },
       });
       if (!user || user.balance.lessThan(amount)) {
-        throw new Error('Insufficient wallet balance');
+        throw new BadRequestException('Insufficient wallet balance');
       }
 
       // Atomic: debit wallet
@@ -349,7 +349,7 @@ export class SIPForChildRepository {
         where: { id: applicationId },
       });
 
-      if (!app) throw new Error('Application not found');
+      if (!app) throw new NotFoundException('Application not found');
 
       const newMonthsPaid = app.monthsPaid + 1;
       const nextMonth = monthNumber + 1;
@@ -359,6 +359,7 @@ export class SIPForChildRepository {
         where: { id: applicationId },
         data: {
           monthsPaid: newMonthsPaid,
+          monthsMissed: 0,
           lastPaidAt: new Date(),
           startedAt: app.startedAt || new Date(),
           nextPaymentDue: isComplete ? null : this.getNextDueDate(new Date()),
@@ -384,38 +385,52 @@ export class SIPForChildRepository {
 
   /**
    * Mark a month as missed and check if auto-rejection is needed.
+   * Only marks a miss if the expected month hasn't already been paid.
    */
   async markMonthMissed(
     applicationId: string,
-  ): Promise<{ rejected: boolean; monthsMissed: number }> {
-    let rejected = false;
-    let monthsMissed = 0;
-    let autoRejectData: {
+  ): Promise<{ rejected: boolean; monthsMissed: number; skipped: boolean }> {
+    let auditData: {
       applicationId: string;
       userId: string;
       scheme: any;
-      newMissed: number;
+      monthsMissed: number;
       refund: string;
-    } | null = null as {
-      applicationId: string;
-      userId: string;
-      scheme: any;
-      newMissed: number;
-      refund: string;
-    } | null;
+    } | null = null;
 
-    await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const app = await tx.sIPForChildApplication.findUnique({
         where: { id: applicationId },
+        include: {
+          premiums: {
+            where: { status: 'PAID' },
+            select: { monthNumber: true },
+          },
+        },
       });
 
       if (!app || app.status !== SIPStatus.VERIFIED) {
-        monthsMissed = 0;
-        return;
+        return { rejected: false, monthsMissed: 0, skipped: true };
       }
 
-      const newMissed = app.monthsMissed + 1;
-      monthsMissed = newMissed;
+      // Check if the expected month was already paid (scheduler/payment race guard)
+      const expectedMonth = app.monthsPaid + 1;
+      const alreadyPaid = app.premiums.some((p) => p.monthNumber === expectedMonth);
+      if (alreadyPaid) {
+        return { rejected: false, monthsMissed: 0, skipped: true };
+      }
+
+      // Use atomic increment to prevent lost-update race
+      const newApp = await tx.sIPForChildApplication.update({
+        where: { id: applicationId },
+        data: {
+          monthsMissed: { increment: 1 },
+          nextPaymentDue: this.getNextDueDate(app.nextPaymentDue || new Date()),
+        },
+        select: { monthsMissed: true },
+      });
+
+      const newMissed = newApp.monthsMissed;
       const shouldReject = newMissed >= 4;
 
       if (shouldReject) {
@@ -455,42 +470,33 @@ export class SIPForChildRepository {
           where: { id: applicationId },
           data: {
             status: SIPStatus.REJECTED,
-            monthsMissed: newMissed,
             reviewNote: 'Auto-rejected: 4 consecutive missed premium payments',
             reviewedAt: new Date(),
           },
         });
 
-        rejected = true;
-        autoRejectData = {
+        auditData = {
           applicationId,
           userId: app.userId,
           scheme: app.scheme,
-          newMissed,
+          monthsMissed: newMissed,
           refund: totalRefund.toString(),
         };
-      } else {
-        await tx.sIPForChildApplication.update({
-          where: { id: applicationId },
-          data: { monthsMissed: newMissed },
-        });
+
+        return { rejected: true, monthsMissed: newMissed, skipped: false };
       }
+
+      return { rejected: false, monthsMissed: newMissed, skipped: false };
     });
 
-    if (autoRejectData !== null) {
+    if (auditData !== null) {
       await this.audit.log({
         action: 'SIP_FOR_CHILD_AUTO_REJECTED' as any,
-        metadata: {
-          applicationId: autoRejectData.applicationId,
-          userId: autoRejectData.userId,
-          scheme: autoRejectData.scheme,
-          monthsMissed: autoRejectData.newMissed,
-          refund: autoRejectData.refund,
-        },
+        metadata: auditData,
       });
     }
 
-    return { rejected, monthsMissed };
+    return result;
   }
 
   /**
@@ -537,15 +543,24 @@ export class SIPForChildRepository {
     return this.prisma.sIPForChildApplication.findMany({
       where: {
         status: SIPStatus.VERIFIED,
-        nextPaymentDue: { not: null },
+        nextPaymentDue: { not: null, lt: new Date() },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+          },
+        },
       },
     });
   }
 
   private getNextDueDate(from: Date): Date {
     const d = new Date(from);
+    d.setDate(1);
     d.setMonth(d.getMonth() + 1);
-    d.setDate(1); // Due on 1st of next month
     return d;
   }
 }

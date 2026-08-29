@@ -341,6 +341,132 @@ export class MailService {
     });
   }
 
+  /** Sent when a SIP For Child monthly premium is missed. */
+  async sendSipForChildMissedPaymentEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    missedMonth: number;
+    totalMonths: number;
+    dueDate: string;
+    monthlyPremium: string;
+    monthsMissed: number;
+  }): Promise<void> {
+    const html = this.renderTemplate('sip-for-child-missed-payment', {
+      ...params,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/investment/all-schemes/sip-for-child/progress`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '⚠️ SIP Premium Missed — Pay Now to Avoid Auto-Rejection',
+      html,
+    });
+  }
+
+  /** Sent when a SIP For Child is auto-rejected after 4 missed payments. */
+  async sendSipForChildAutoRejectedEmail(params: {
+    to: string;
+    firstName: string;
+    planName: string;
+    monthsPaid: number;
+    totalMonths: number;
+    monthsMissed: number;
+    refundAmount: string;
+  }): Promise<void> {
+    const html = this.renderTemplate('sip-for-child-auto-rejected', {
+      ...params,
+      dashboardLink: `${this.config.get<string>('FRONTEND_URL')}/investment/all-schemes/sip-for-child/progress`,
+      year: new Date().getFullYear(),
+    });
+    await this.send({
+      to: params.to,
+      subject: '❌ SIP For Child Auto-Rejected — Full Refund Credited',
+      html,
+    });
+  }
+
+  // ─── Fixed Deposit Emails ────────────────────────────────────────────────
+
+  async sendFDOTPEmail(to: string, otp: string, params: { firstName: string; planId: string; depositAmount: number }) {
+    const html = this.renderTemplate('fd-otp', {
+      firstName: params.firstName,
+      otp,
+      expiryMinutes: this.config.get<number>('OTP_EXPIRY_MINUTES', 5),
+      planId: params.planId,
+      depositAmount: params.depositAmount.toLocaleString('en-IN'),
+      year: new Date().getFullYear(),
+    });
+    await this.send({ to, subject: '🏦 Fixed Deposit — OTP Verification', html });
+  }
+
+  async sendFDAppliedEmail(to: string, params: { firstName: string; applicationId: string; planId: string; depositAmount: number; lockInMonths: number }) {
+    const html = this.renderTemplate('fd-applied', {
+      firstName: params.firstName,
+      applicationId: params.applicationId,
+      planId: params.planId,
+      depositAmount: params.depositAmount.toLocaleString('en-IN'),
+      lockInMonths: params.lockInMonths,
+      year: new Date().getFullYear(),
+    });
+    await this.send({ to, subject: '🏦 Fixed Deposit Application Submitted', html });
+  }
+
+  async sendFDApprovedEmail(to: string, params: {
+    firstName: string;
+    applicationId: string; planId: string; depositAmount: number;
+    lockInMonths: number; payoutMode: string; emiAmount: number;
+    totalEmis: number; totalPayout: number; nextPayoutAt: Date | null;
+  }) {
+    const html = this.renderTemplate('fd-approved', {
+      firstName: params.firstName,
+      applicationId: params.applicationId,
+      planId: params.planId,
+      depositAmount: params.depositAmount.toLocaleString('en-IN'),
+      payoutMode: params.payoutMode,
+      emiAmount: params.emiAmount.toLocaleString('en-IN'),
+      totalEmis: params.totalEmis,
+      totalPayout: params.totalPayout.toLocaleString('en-IN'),
+      nextPayoutDate: params.nextPayoutAt
+        ? new Date(params.nextPayoutAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+        : 'N/A',
+      year: new Date().getFullYear(),
+    });
+    await this.send({ to, subject: '🏦 Fixed Deposit Approved — Payout Cycle Started', html });
+  }
+
+  async sendFDEMICreditedEmail(to: string, params: {
+    firstName: string;
+    applicationId: string; planId: string; emiNumber: number;
+    amount: number; newBalance: number;
+  }) {
+    const html = this.renderTemplate('fd-emi-credited', {
+      firstName: params.firstName,
+      applicationId: params.applicationId,
+      planId: params.planId,
+      emiNumber: params.emiNumber,
+      amount: params.amount.toLocaleString('en-IN'),
+      newBalance: params.newBalance.toLocaleString('en-IN'),
+      year: new Date().getFullYear(),
+    });
+    await this.send({ to, subject: '💸 Fixed Deposit EMI Credited', html });
+  }
+
+  async sendFDMaturedEmail(to: string, params: {
+    firstName: string;
+    applicationId: string; planId: string; totalPayout: number; depositAmount: number;
+  }) {
+    const html = this.renderTemplate('fd-matured', {
+      firstName: params.firstName,
+      applicationId: params.applicationId,
+      planId: params.planId,
+      totalPayout: params.totalPayout.toLocaleString('en-IN'),
+      depositAmount: params.depositAmount.toLocaleString('en-IN'),
+      year: new Date().getFullYear(),
+    });
+    await this.send({ to, subject: '🎉 Fixed Deposit Matured — Congratulations!', html });
+  }
+
   private async send(params: {
     to: string;
     subject: string;

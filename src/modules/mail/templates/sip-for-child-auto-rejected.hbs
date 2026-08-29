@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #dc2626; font-size: 22px; margin: 0 0 4px 0;">❌ SIP Auto-Rejected</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">SIP For Child — Application Closed</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Your SIP for <strong>{{planName}}</strong> has been automatically rejected due to <strong>4 consecutive missed premium payments</strong>.
+        </p>
+
+        <div style="background: #fef2f2; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #fca5a5;">
+          <table style="width: 100%; font-size: 14px;">
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Plan</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{planName}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Months Paid</td>
+              <td style="color: #111827; font-weight: bold; text-align: right; padding-bottom: 8px;">{{monthsPaid}} of {{totalMonths}}</td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-bottom: 8px;">Months Missed</td>
+              <td style="color: #dc2626; font-weight: bold; text-align: right; padding-bottom: 8px;">{{monthsMissed}}</td>
+            </tr>
+            <tr>
+              <td colspan="2"><hr style="border: none; border-top: 1px solid #e5e7eb; margin: 8px 0;" /></td>
+            </tr>
+            <tr>
+              <td style="color: #6b7280; padding-top: 8px;"><strong>Refund Amount</strong></td>
+              <td style="color: #15803d; font-weight: bold; text-align: right; padding-top: 8px;">₹{{refundAmount}}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 14px; margin: 20px 0; border: 1px solid #22c55e;">
+          <p style="color: #166534; font-size: 13px; margin: 0; line-height: 1.5;">
+            <strong>Refund processed:</strong> ₹{{refundAmount}} has been credited back to your wallet. You can use this balance for other investments or withdraw it.
+          </p>
+        </div>
+
+        <p style="text-align: center; margin: 28px 0;">
+          <a href="{{dashboardLink}}" style="display: inline-block; background: #7c3aed; color: #ffffff; text-decoration: none; padding: 12px 36px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+            View Dashboard
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

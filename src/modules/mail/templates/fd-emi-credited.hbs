@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">💸 EMI Credited</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">Fixed Deposit payout</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Your EMI has been credited to your wallet.
+        </p>
+
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #22c55e;">
+          
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">EMI Number:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">#{{emiNumber}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Amount Credited:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{amount}}</span>
+          </div>
+          <div style="margin-bottom: 0;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">New Wallet Balance:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{newBalance}}</span>
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
