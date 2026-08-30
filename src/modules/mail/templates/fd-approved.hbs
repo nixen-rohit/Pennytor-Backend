@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">🏦 Fixed Deposit Approved</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">Your investment is now active</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Great news! Your Fixed Deposit application has been approved and your deposit has been debited. Your payout cycle starts now.
+        </p>
+
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #22c55e;">
+           
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Plan:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{planId}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Deposit Debited:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{depositAmount}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Payout Mode:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{payoutMode}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">EMI Amount:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{emiAmount}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Total EMIs:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{totalEmis}}</span>
+          </div>
+          <div style="margin-bottom: 0;">
+            <span style="font-size: 13px; color: #15803d; font-weight: 600;">Total Payout:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{totalPayout}}</span>
+          </div>
+        </div>
+
+        <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+          <p style="font-size: 13px; color: #6b7280; margin: 0 0 4px 0;">Next payout on</p>
+          <p style="font-size: 16px; color: #111827; font-weight: 600; margin: 0;">{{nextPayoutDate}}</p>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

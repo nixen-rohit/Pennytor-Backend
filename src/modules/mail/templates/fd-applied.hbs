@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f4f5f7; padding: 32px; margin: 0;">
+  <table style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+    <tr>
+      <td>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #111827; font-size: 22px; margin: 0 0 4px 0;">🏦 Fixed Deposit Application</h1>
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">Application submitted</p>
+        </div>
+
+        <p style="color: #374151; font-size: 15px;">Hi {{firstName}},</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          Your Fixed Deposit application has been submitted successfully. An admin will review it shortly.
+        </p>
+
+        <div style="background: #eff6ff; border-radius: 8px; padding: 16px; margin: 24px 0; border: 1px solid #3b82f6;">
+           
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #1d4ed8; font-weight: 600;">Plan:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{planId}}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 13px; color: #1d4ed8; font-weight: 600;">Deposit Amount:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">₹{{depositAmount}}</span>
+          </div>
+          <div style="margin-bottom: 0;">
+            <span style="font-size: 13px; color: #1d4ed8; font-weight: 600;">Lock-in Period:</span>
+            <span style="font-size: 15px; color: #111827; font-weight: 600; margin-left: 8px;">{{lockInMonths}} months</span>
+          </div>
+        </div>
+
+        <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">
+          You will receive an email once your application is reviewed. Thank you for choosing Pennytor!
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+          &copy; {{year}} Pennytor. All rights reserved.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

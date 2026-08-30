@@ -19,7 +19,6 @@ import {
 } from './dto/sip-for-child.dto';
 
 const TOTAL_MONTHS = 120; // 10 years
-const MAX_MISSED_PAYMENTS = 3;
 
 export interface SIPForChildScheme {
   id: 'PLAN_5000' | 'PLAN_2500';
@@ -136,6 +135,8 @@ export class SIPForChildService {
     userId: string,
     dto: CreateSIPForChildApplicationDto,
   ): Promise<{ id: string; status: string; amount: string }> {
+    this.assertAttemptsAvailable(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
@@ -144,7 +145,14 @@ export class SIPForChildService {
 
     // Verify password
     const { valid } = await verifyPassword(dto.password, user.passwordHash);
-    if (!valid) throw new BadRequestException('Password is incorrect');
+    if (!valid) {
+      const remaining = this.registerFailure(userId);
+      throw new BadRequestException(
+        `Password is incorrect. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining today.`,
+      );
+    }
+
+    this.failedVerifications.delete(userId);
 
     // Verify OTP
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, dto.otp);
@@ -397,6 +405,86 @@ export class SIPForChildService {
     );
 
     return { items: entries };
+  }
+
+  // ------------------------------------------------------------- scheduler
+
+  /**
+   * Called by the missed-payment scheduler. Finds all VERIFIED applications
+   * whose nextPaymentDue is in the past and marks each overdue month as missed.
+   * If the 4th miss threshold is hit, the application is auto-rejected and
+   * refunded inside the repository transaction.
+   */
+  async processMissedPayments(): Promise<{
+    checked: number;
+    missed: number;
+    rejected: number;
+  }> {
+    const apps = await this.repository.findApplicationsWithDuePremiums();
+    const now = new Date();
+    let missed = 0;
+    let rejected = 0;
+
+    for (const app of apps) {
+      if (!app.nextPaymentDue || app.nextPaymentDue > now) continue;
+
+      const result = await this.repository.markMonthMissed(app.id);
+      if (result.skipped || result.monthsMissed === 0) continue;
+
+      missed++;
+
+      // Re-fetch fresh data for emails (the app object is stale after markMonthMissed)
+      const freshApp = await this.repository.findById(app.id);
+      if (!freshApp) continue;
+
+      // Send email notification (best-effort)
+      try {
+        const scheme = (await this.getSchemes()).find(
+          (s) => s.id === app.scheme,
+        );
+        const dueDate = app.nextPaymentDue!.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
+
+        if (result.rejected) {
+          const paidPremiums = freshApp.premiums?.filter((p) => p.status === 'PAID') || [];
+          const refundTotal = paidPremiums.reduce(
+            (sum, p) => sum.add(p.amount),
+            new (require('@prisma/client').Prisma.Decimal)(0),
+          );
+          await this.mailService.sendSipForChildAutoRejectedEmail({
+            to: app.user.email,
+            firstName: app.user.firstName,
+            planName: `SIP for Child - ${scheme?.name || app.scheme}`,
+            monthsPaid: freshApp.monthsPaid,
+            totalMonths: freshApp.totalMonths,
+            monthsMissed: result.monthsMissed,
+            refundAmount: refundTotal.toLocaleString('en-IN'),
+          });
+          rejected++;
+        } else {
+          await this.mailService.sendSipForChildMissedPaymentEmail({
+            to: app.user.email,
+            firstName: app.user.firstName,
+            planName: `SIP for Child - ${scheme?.name || app.scheme}`,
+            missedMonth: freshApp.monthsPaid + 1,
+            totalMonths: freshApp.totalMonths,
+            dueDate,
+            monthlyPremium: scheme?.monthlyInvestment.toLocaleString('en-IN') || '0',
+            monthsMissed: result.monthsMissed,
+          });
+        }
+      } catch (error) {
+        this.logger.error(
+          `Missed-payment email failed for ${app.id}: ${error}`,
+        );
+      }
+    }
+
+    return { checked: apps.length, missed, rejected };
   }
 
   // ------------------------------------------------------------- admin

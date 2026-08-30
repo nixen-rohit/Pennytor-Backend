@@ -20,6 +20,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ContactUsModule } from './modules/contactus/contactus.module';
 import { InvestmentFundModule } from './modules/investment-fund/investment-fund.module';
 import { SIPForChildModule } from './modules/sip-for-child/sip-for-child.module';
+import { FixedDepositModule } from './modules/fixed-deposit/fixed-deposit.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SIPForChildModule } from './modules/sip-for-child/sip-for-child.module'
     ContactUsModule,
     InvestmentFundModule,
     SIPForChildModule,
+    FixedDepositModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
