@@ -1,14 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FDPayoutScheduler } from './fd-payout.scheduler';
 import { FixedDepositService } from './fixed-deposit.service';
+import { PrismaService } from '../../database/prisma.service';
 
 describe('FDPayoutScheduler', () => {
   let scheduler: FDPayoutScheduler;
   let fdService: Record<string, any>;
+  let prisma: Record<string, any>;
 
   beforeEach(async () => {
     fdService = {
       processPayouts: jest.fn().mockResolvedValue({ total: 0, credited: 0, skipped: 0 }),
+    };
+
+    prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
     };
 
     jest.useFakeTimers();
@@ -17,6 +23,7 @@ describe('FDPayoutScheduler', () => {
       providers: [
         FDPayoutScheduler,
         { provide: FixedDepositService, useValue: fdService },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
 
@@ -50,7 +57,8 @@ describe('FDPayoutScheduler', () => {
       scheduler.onModuleInit();
 
       jest.advanceTimersByTime(25_000);
-      await Promise.resolve(); // flush microtasks
+      await Promise.resolve();
+      await Promise.resolve();
 
       expect(fdService.processPayouts).toHaveBeenCalled();
     });
@@ -59,6 +67,7 @@ describe('FDPayoutScheduler', () => {
       scheduler.onModuleInit();
 
       jest.advanceTimersByTime(60 * 60 * 1000);
+      await Promise.resolve();
       await Promise.resolve();
 
       expect(fdService.processPayouts).toHaveBeenCalled();
@@ -74,13 +83,14 @@ describe('FDPayoutScheduler', () => {
       // First tick
       jest.advanceTimersByTime(25_000);
       await Promise.resolve();
+      await Promise.resolve();
 
       // Second tick before first completes
       jest.advanceTimersByTime(60 * 60 * 1000);
       await Promise.resolve();
+      await Promise.resolve();
 
       // processPayouts should only be called once (concurrent skipped)
-      // The second call is blocked by isRunning
       expect(fdService.processPayouts).toHaveBeenCalledTimes(1);
     });
 

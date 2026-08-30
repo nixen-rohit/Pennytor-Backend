@@ -72,6 +72,7 @@ export class FixedDepositRepository {
         lastName: true,
         balance: true,
         passwordHash: true,
+        emailVerified: true,
       },
     });
   }
@@ -164,13 +165,26 @@ export class FixedDepositRepository {
 
   async approveAndStartCycle(id: string, adminId: string) {
     const result = await this.prisma.$transaction(async (tx) => {
-      const app = await tx.fixedDepositApplication.findUnique({ where: { id } });
-      if (!app || app.status !== 'PENDING') {
+      // Lock the row to prevent double-approve race condition
+      const app = await tx.$queryRaw<any[]>`
+        SELECT * FROM "FixedDepositApplication" WHERE id = ${id} FOR UPDATE
+      `;
+      const appRow = app[0];
+      if (!appRow || appRow.status !== 'PENDING') {
         return { conflicted: true, application: null };
       }
 
+      // Check wallet balance before debiting
+      const user = await tx.user.findUnique({
+        where: { id: appRow.userId },
+        select: { balance: true },
+      });
+      if (!user || user.balance < appRow.depositAmount) {
+        return { conflicted: true, application: null, reason: 'INSUFFICIENT_BALANCE' };
+      }
+
       const now = new Date();
-      const nextPayout = this.calculateNextPayout(now, app.payoutMode);
+      const nextPayout = this.calculateNextPayout(now, appRow.payoutMode);
 
       const updated = await tx.fixedDepositApplication.update({
         where: { id },
@@ -185,31 +199,31 @@ export class FixedDepositRepository {
 
       // Create all payout rows (PENDING)
       const payoutRows = [];
-      for (let i = 1; i <= app.totalEmis; i++) {
+      for (let i = 1; i <= appRow.totalEmis; i++) {
         payoutRows.push({
           applicationId: id,
-          userId: app.userId,
+          userId: appRow.userId,
           emiNumber: i,
-          amount: app.emiAmount,
+          amount: appRow.emiAmount,
           status: 'PENDING' as const,
         });
       }
       await tx.fixedDepositPayout.createMany({ data: payoutRows });
 
       // Debit deposit from wallet
-      const user = await tx.user.update({
-        where: { id: app.userId },
-        data: { balance: { decrement: app.depositAmount } },
+      const updatedUser = await tx.user.update({
+        where: { id: appRow.userId },
+        data: { balance: { decrement: appRow.depositAmount } },
         select: { balance: true },
       });
 
       // Ledger entry
       await tx.ledgerEntry.create({
         data: {
-          userId: app.userId,
+          userId: appRow.userId,
           direction: 'DEBIT',
-          amount: app.depositAmount,
-          balanceAfter: user.balance,
+          amount: appRow.depositAmount,
+          balanceAfter: updatedUser.balance,
           sourceType: 'FD_DEPOSIT' as any,
           sourceId: id,
         },
@@ -257,10 +271,17 @@ export class FixedDepositRepository {
 
   async creditPayout(applicationId: string, emiNumber: number) {
     return this.prisma.$transaction(async (tx) => {
-      const payout = await tx.fixedDepositPayout.findUnique({
-        where: { applicationId_emiNumber: { applicationId, emiNumber } },
-      });
+      // Lock the payout row to prevent double-credit race condition
+      const payoutRows = await tx.$queryRaw<any[]>`
+        SELECT * FROM "FixedDepositPayout" 
+        WHERE "applicationId" = ${applicationId} AND "emiNumber" = ${emiNumber} FOR UPDATE
+      `;
+      const payout = payoutRows[0];
       if (!payout || payout.status !== 'PENDING') return null;
+
+      // Re-verify application is still VERIFIED
+      const app = await tx.fixedDepositApplication.findUnique({ where: { id: applicationId } });
+      if (!app || app.status !== 'VERIFIED') return null;
 
       // Credit EMI to wallet
       const user = await tx.user.update({
@@ -288,9 +309,6 @@ export class FixedDepositRepository {
       });
 
       // Update application counters
-      const app = await tx.fixedDepositApplication.findUnique({ where: { id: applicationId } });
-      if (!app) return null;
-
       const newEmisPaid = app.emisPaid + 1;
       const isComplete = newEmisPaid >= app.totalEmis;
 

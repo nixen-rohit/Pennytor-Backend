@@ -35,6 +35,10 @@ export class FixedDepositService {
     const user = await this.repo.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
+    if (!(user as any).emailVerified) {
+      throw new BadRequestException('Please verify your email before applying');
+    }
+
     const { valid } = await verifyPassword(password, user.passwordHash);
     if (!valid) {
       const remaining = this.registerFailure(userId);
@@ -67,6 +71,10 @@ export class FixedDepositService {
 
     const user = await this.repo.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
+
+    if (!(user as any).emailVerified) {
+      throw new BadRequestException('Please verify your email before applying');
+    }
 
     const { valid } = await verifyPassword(password, user.passwordHash);
     if (!valid) {
@@ -128,6 +136,8 @@ export class FixedDepositService {
       throw new ConflictException('Application is no longer pending');
     }
 
+    this.audit.log({ action: 'APPROVE_DEPOSIT', userId: adminId, metadata: { targetId: id, planId: result.application?.planId } });
+
     const app = result.application;
     if (app) {
       const user = await this.repo.getUserWithPasswordHash(app.userId);
@@ -155,6 +165,9 @@ export class FixedDepositService {
     if (result.conflicted) {
       throw new ConflictException('Application is no longer pending');
     }
+
+    this.audit.log({ action: 'REJECT_DEPOSIT', userId: adminId, metadata: { targetId: id, reason } });
+
     return { message: 'Application rejected' };
   }
 

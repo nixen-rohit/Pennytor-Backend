@@ -575,6 +575,7 @@ model FixedDepositApplication {
 
   @@index([userId])
   @@index([status])
+  @@index([status, nextPayoutAt])
   @@index([createdAt])
   @@map("fixed_deposit_applications")
 }

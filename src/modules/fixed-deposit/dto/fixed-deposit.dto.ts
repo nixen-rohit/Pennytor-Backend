@@ -1,4 +1,4 @@
-import { IsString, MinLength, MaxLength, IsEnum, IsOptional } from 'class-validator';
+import { IsString, MinLength, MaxLength, IsEnum, IsOptional, Matches } from 'class-validator';
 import { FixedDepositPlanId } from '@prisma/client';
 
 export class VerifyFDPasswordDto {
@@ -23,6 +23,7 @@ export class CreateFDApplicationDto {
   @IsString()
   @MinLength(6)
   @MaxLength(6)
+  @Matches(/^\d{6}$/, { message: 'OTP must be a 6-digit number' })
   otp: string;
 }
 
@@ -48,5 +49,6 @@ export class ListFDQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 }

@@ -7,10 +7,13 @@ import { AuditService } from '../audit/audit.service';
 describe('FixedDepositRepository', () => {
   let repo: FixedDepositRepository;
   let prisma: Record<string, any>;
+  let mockQueryRawResult: any[];
 
   const mockAudit = { log: jest.fn() };
 
   beforeEach(async () => {
+    mockQueryRawResult = [];
+
     prisma = {
       fixedDepositApplication: {
         create: jest.fn(),
@@ -38,6 +41,7 @@ describe('FixedDepositRepository', () => {
           fixedDepositPayout: prisma.fixedDepositPayout,
           user: prisma.user,
           ledgerEntry: prisma.ledgerEntry,
+          $queryRaw: jest.fn().mockImplementation(() => Promise.resolve(mockQueryRawResult)),
         };
         return fn(tx);
       }),
@@ -259,7 +263,8 @@ describe('FixedDepositRepository', () => {
         depositAmount: { toNumber: () => 100000 },
       };
       const mockUpdated = { ...mockApp, status: 'VERIFIED' };
-      prisma.fixedDepositApplication.findUnique.mockResolvedValue(mockApp);
+      mockQueryRawResult = [mockApp];
+      prisma.user.findUnique.mockResolvedValue({ balance: 200000 });
       prisma.fixedDepositApplication.update.mockResolvedValue(mockUpdated);
       prisma.fixedDepositPayout.createMany.mockResolvedValue({ count: 2 });
       prisma.user.update.mockResolvedValue({ balance: 0 });
@@ -271,17 +276,17 @@ describe('FixedDepositRepository', () => {
     });
 
     it('should return conflicted if not PENDING', async () => {
-      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+      mockQueryRawResult = [{
         id: 'app-1',
         status: 'VERIFIED',
-      });
+      }];
 
       const result = await repo.approveAndStartCycle('app-1', 'admin-1');
       expect(result.conflicted).toBe(true);
     });
 
     it('should return conflicted if not found', async () => {
-      prisma.fixedDepositApplication.findUnique.mockResolvedValue(null);
+      mockQueryRawResult = [];
 
       const result = await repo.approveAndStartCycle('non-existent', 'admin-1');
       expect(result.conflicted).toBe(true);
@@ -332,7 +337,7 @@ describe('FixedDepositRepository', () => {
   describe('calculateNextPayout (via approve)', () => {
     it('should calculate quarterly next payout correctly', async () => {
       const now = new Date();
-      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+      mockQueryRawResult = [{
         id: 'app-1',
         userId: 'user-1',
         status: 'PENDING',
@@ -340,7 +345,8 @@ describe('FixedDepositRepository', () => {
         payoutMode: 'quarterly',
         emiAmount: { toNumber: () => 3130 },
         depositAmount: { toNumber: () => 25000 },
-      });
+      }];
+      prisma.user.findUnique.mockResolvedValue({ balance: 50000 });
       prisma.fixedDepositApplication.update.mockResolvedValue({});
       prisma.fixedDepositPayout.createMany.mockResolvedValue({ count: 2 });
       prisma.user.update.mockResolvedValue({ balance: 0 });
@@ -348,7 +354,6 @@ describe('FixedDepositRepository', () => {
 
       await repo.approveAndStartCycle('app-1', 'admin-1');
 
-      // Check that nextPayoutAt is set to 3 months from now (1st of month)
       const updateCall = prisma.fixedDepositApplication.update.mock.calls[0][0];
       const nextPayout = updateCall.data.nextPayoutAt;
       expect(nextPayout).toBeInstanceOf(Date);
@@ -357,7 +362,7 @@ describe('FixedDepositRepository', () => {
 
     it('should calculate monthly next payout correctly', async () => {
       const now = new Date();
-      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+      mockQueryRawResult = [{
         id: 'app-1',
         userId: 'user-1',
         status: 'PENDING',
@@ -365,7 +370,8 @@ describe('FixedDepositRepository', () => {
         payoutMode: 'monthly',
         emiAmount: { toNumber: () => 5000 },
         depositAmount: { toNumber: () => 100000 },
-      });
+      }];
+      prisma.user.findUnique.mockResolvedValue({ balance: 200000 });
       prisma.fixedDepositApplication.update.mockResolvedValue({});
       prisma.fixedDepositPayout.createMany.mockResolvedValue({ count: 2 });
       prisma.user.update.mockResolvedValue({ balance: 0 });
