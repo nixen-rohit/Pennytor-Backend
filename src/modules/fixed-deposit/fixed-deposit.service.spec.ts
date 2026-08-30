@@ -94,6 +94,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
       otpService.generate.mockResolvedValue('123456');
@@ -118,6 +119,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
@@ -132,6 +134,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
       otpService.generate.mockResolvedValue('123456');
@@ -153,6 +156,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
@@ -195,6 +199,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
@@ -209,6 +214,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
       otpService.verify.mockResolvedValue(undefined);
@@ -416,6 +422,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
@@ -434,6 +441,7 @@ describe('FixedDepositService', () => {
         email: 'test@test.com',
         firstName: 'Test',
         passwordHash: 'hash',
+        emailVerified: true,
       });
       mockVerifyPassword
         .mockResolvedValueOnce({ valid: false } as any)
