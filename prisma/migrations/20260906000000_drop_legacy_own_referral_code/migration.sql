@@ -1,0 +1,21 @@
+-- ─────────────────────────────────────────────────────────────────
+-- Drop the legacy `ownReferralCode` column from the `users` table.
+--
+-- The 20260905000000_referral_commission_system migration added
+-- the new `referralCode` column (nullable) and backfilled it from
+-- `ownReferralCode` for existing rows, but it left `ownReferralCode`
+-- in place to keep the original migration idempotent. This follow-up
+-- drops the legacy column now that the application model no longer
+-- references it.
+--
+-- The new `referralCode` column is the single source of truth for a
+-- user's referral code (spec §2, §7). All reads/writes in
+-- ReferralService, ReferralRepository, etc. go through `referralCode`.
+--
+-- Safe on any environment: the column is dropped with IF EXISTS so a
+-- fresh database (which never had the column) is unaffected, and a
+-- partial-migration database (which still has the column with
+-- backfilled data in the parallel `referralCode` column) is fully
+-- cleaned up.
+-- ─────────────────────────────────────────────────────────────────
+ALTER TABLE "users" DROP COLUMN IF EXISTS "ownReferralCode";

@@ -8,7 +8,12 @@ describe('FixedDepositAdminController', () => {
   let controller: FixedDepositAdminController;
   let service: Record<string, any>;
 
-  const mockAdmin = { id: 'admin-1', email: 'admin@test.com', firstName: 'Admin', lastName: 'User' };
+  const mockAdmin = {
+    id: 'admin-1',
+    email: 'admin@test.com',
+    firstName: 'Admin',
+    lastName: 'User',
+  };
 
   beforeEach(async () => {
     service = {
@@ -35,7 +40,12 @@ describe('FixedDepositAdminController', () => {
     it('should call service with parsed query params', async () => {
       service.listApplications.mockResolvedValue({ items: [], total: 0 });
 
-      await controller.listApplications({ page: '1', pageSize: '10', status: 'PENDING', search: 'test' });
+      await controller.listApplications({
+        page: '1',
+        pageSize: '10',
+        status: 'PENDING',
+        search: 'test',
+      });
 
       expect(service.listApplications).toHaveBeenCalledWith({
         page: 1,
@@ -82,31 +92,53 @@ describe('FixedDepositAdminController', () => {
 
   describe('approve', () => {
     it('should approve application', async () => {
-      service.approveApplication.mockResolvedValue({ id: 'app-1', status: 'VERIFIED' });
+      service.approveApplication.mockResolvedValue({
+        id: 'app-1',
+        status: 'VERIFIED',
+      });
 
       const result = await controller.approve('app-1', mockAdmin as any);
 
       expect(result).toEqual({ id: 'app-1', status: 'VERIFIED' });
-      expect(service.approveApplication).toHaveBeenCalledWith('app-1', 'admin-1');
+      expect(service.approveApplication).toHaveBeenCalledWith(
+        'app-1',
+        'admin-1',
+      );
     });
   });
 
   describe('reject', () => {
     it('should reject application with note', async () => {
-      service.rejectApplication.mockResolvedValue({ message: 'Application rejected' });
+      service.rejectApplication.mockResolvedValue({
+        message: 'Application rejected',
+      });
 
-      const result = await controller.reject('app-1', { note: 'Not interested' }, mockAdmin as any);
+      const result = await controller.reject(
+        'app-1',
+        { note: 'Not interested' },
+        mockAdmin as any,
+      );
 
       expect(result).toEqual({ message: 'Application rejected' });
-      expect(service.rejectApplication).toHaveBeenCalledWith('app-1', 'admin-1', 'Not interested');
+      expect(service.rejectApplication).toHaveBeenCalledWith(
+        'app-1',
+        'admin-1',
+        'Not interested',
+      );
     });
 
     it('should reject application with empty note', async () => {
-      service.rejectApplication.mockResolvedValue({ message: 'Application rejected' });
+      service.rejectApplication.mockResolvedValue({
+        message: 'Application rejected',
+      });
 
       const result = await controller.reject('app-1', {}, mockAdmin as any);
 
-      expect(service.rejectApplication).toHaveBeenCalledWith('app-1', 'admin-1', '');
+      expect(service.rejectApplication).toHaveBeenCalledWith(
+        'app-1',
+        'admin-1',
+        '',
+      );
     });
   });
 });

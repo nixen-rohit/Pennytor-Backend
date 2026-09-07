@@ -260,14 +260,18 @@ export class KycService {
       },
       documents: {
         aadhaarNumber:
-          decryptOrNull(app.aadhaarNumberEncrypted) ?? mask(app.aadhaarNumberLast4),
-        panNumber: decryptOrNull(app.panNumberEncrypted) ?? mask(app.panNumberLast4),
+          decryptOrNull(app.aadhaarNumberEncrypted) ??
+          mask(app.aadhaarNumberLast4),
+        panNumber:
+          decryptOrNull(app.panNumberEncrypted) ?? mask(app.panNumberLast4),
       },
       bank: {
         accountHolderName: app.accountHolderName,
         accountNumber:
-          decryptOrNull(app.accountNumberEncrypted) ?? mask(app.accountNumberLast4),
-        ifscCode: decryptOrNull(app.ifscCodeEncrypted) ?? mask(app.ifscCodeLast4),
+          decryptOrNull(app.accountNumberEncrypted) ??
+          mask(app.accountNumberLast4),
+        ifscCode:
+          decryptOrNull(app.ifscCodeEncrypted) ?? mask(app.ifscCodeLast4),
         bankName: app.bankName,
         branchName: app.branchName,
         accountType: app.accountType,
@@ -278,7 +282,8 @@ export class KycService {
         nomineeDob: app.nomineeDob,
         nomineePhone: app.nomineePhone,
         nomineeAadhaar:
-          decryptOrNull(app.nomineeAadhaarEncrypted) ?? mask(app.nomineeAadhaarLast4),
+          decryptOrNull(app.nomineeAadhaarEncrypted) ??
+          mask(app.nomineeAadhaarLast4),
       },
       files: app.files.map((f) => ({
         id: f.id,
@@ -302,10 +307,7 @@ export class KycService {
     if (!app) throw new NotFoundException('Application not found');
 
     // A rejection must always carry a reason (emailed to the user).
-    if (
-      status === KycApplicationStatus.REJECTED &&
-      !note?.trim()
-    ) {
+    if (status === KycApplicationStatus.REJECTED && !note?.trim()) {
       throw new BadRequestException(
         'A rejection reason is required for this decision',
       );
@@ -350,6 +352,49 @@ export class KycService {
   }
 
   // ---------------------------------------------------------------- helpers
+
+  /**
+   * Returns the KYC status for the given user, normalized to a small
+   * union the rest of the app can rely on:
+   *
+   *   - "VERIFIED"        — the user has a verified KYC application
+   *   - "PENDING"         — the user has a non-VERIFIED application in
+   *                         some state (DRAFT / SUBMITTED / UNDER_REVIEW)
+   *   - "REJECTED"        — the latest application was rejected
+   *   - "NOT_STARTED"     — the user has never submitted a KYC app
+   *
+   * Spec §9 (investment eligibility): only VERIFIED users may make
+   * deposits or investments, and therefore may earn any kind of
+   * commission. All three investment entry points (deposit, fund,
+   * SIP, FD) call `assertKycVerified` below to enforce this.
+   */
+  async getKycStatus(
+    userId: string,
+  ): Promise<"VERIFIED" | "PENDING" | "REJECTED" | "NOT_STARTED"> {
+    const app = await this.repository.findByUserId(userId);
+    if (!app) return "NOT_STARTED";
+    if (app.status === KycApplicationStatus.VERIFIED) return "VERIFIED";
+    if (app.status === KycApplicationStatus.REJECTED) return "REJECTED";
+    return "PENDING";
+  }
+
+  /**
+   * Throws `ForbiddenException` if the user is not KYC-verified. This
+   * is the single source of truth for "can this user move money" and
+   * is called by the deposit, investment-fund, SIP, and fixed-deposit
+   * create-application paths.
+   */
+  async assertKycVerified(userId: string): Promise<void> {
+    const status = await this.getKycStatus(userId);
+    if (status === "VERIFIED") return;
+    const reason =
+      status === "NOT_STARTED"
+        ? "KYC verification is required before making any deposit or investment. Complete your KYC first."
+        : status === "REJECTED"
+          ? "Your KYC application was rejected. Please contact support to resubmit before making any investment."
+          : "Your KYC application is still under review. You will be able to invest once it is verified.";
+    throw new ForbiddenException(reason);
+  }
 
   private async requireOwnedApplication(userId: string) {
     const app = await this.repository.findByUserId(userId);

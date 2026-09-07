@@ -66,6 +66,16 @@ export class DepositRepository {
     });
   }
 
+  findActiveByUser(userId: string): Promise<DepositRequest | null> {
+    return this.prisma.depositRequest.findFirst({
+      where: {
+        userId,
+        status: { in: [DepositStatus.PENDING, DepositStatus.UNDER_REVIEW] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getBalance(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -81,7 +91,16 @@ export class DepositRepository {
     pageSize: number;
   }): Promise<{
     items: Prisma.DepositRequestGetPayload<{
-      include: { user: { select: { firstName: true; lastName: true; email: true; clientId: true } } };
+      include: {
+        user: {
+          select: {
+            firstName: true;
+            lastName: true;
+            email: true;
+            clientId: true;
+          };
+        };
+      };
     }>[];
     total: number;
   }> {
@@ -90,7 +109,11 @@ export class DepositRepository {
       ...(params.search
         ? {
             OR: [
-              { user: { email: { contains: params.search, mode: 'insensitive' } } },
+              {
+                user: {
+                  email: { contains: params.search, mode: 'insensitive' },
+                },
+              },
               {
                 user: {
                   clientId: { contains: params.search, mode: 'insensitive' },
@@ -106,7 +129,12 @@ export class DepositRepository {
         where,
         include: {
           user: {
-            select: { firstName: true, lastName: true, email: true, clientId: true },
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              clientId: true,
+            },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -119,58 +147,16 @@ export class DepositRepository {
     return { items, total };
   }
 
-  async setStatus(
-    id: string,
-    status: DepositStatus,
-    reviewedBy: string,
-    note?: string | null,
-  ): Promise<DepositRequest> {
-    return this.prisma.depositRequest.update({
-      where: { id },
-      data: {
-        status,
-        reviewedBy,
-        reviewedAt: new Date(),
-        ...(note !== undefined ? { reviewNote: note } : {}),
-      },
-    });
-  }
-
-  /**
-   * Marks the request VERIFIED and credits the user's wallet in a single
-   * transaction, so approval can never credit without the status flip.
-   */
-  async approveAndCredit(
-    id: string,
-    userId: string,
-    reviewedBy: string,
-    amount: Prisma.Decimal,
-  ): Promise<DepositRequest> {
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.depositRequest.update({
-        where: { id },
-        data: {
-          status: DepositStatus.VERIFIED,
-          reviewedBy,
-          reviewedAt: new Date(),
-          reviewNote: null,
-        },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: { increment: amount } },
-      }),
-    ]);
-    return updated;
-  }
-
   /**
    * Production approve path: CONDITIONAL status flip (only a PENDING /
    * UNDER_REVIEW row matches), wallet credit, ledger entry and audit log in
    * one transaction. Two concurrent approvals cannot both match — the second
    * update matches zero rows and the whole operation rolls back.
    */
-  async approve(row: DepositRequest, adminId: string): Promise<{ conflicted: boolean }> {
+  async approve(
+    row: DepositRequest,
+    adminId: string,
+  ): Promise<{ conflicted: boolean }> {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.depositRequest.updateMany({
         where: {

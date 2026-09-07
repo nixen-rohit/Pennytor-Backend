@@ -89,7 +89,7 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
   @ApiOperation({ summary: 'Create a new account' })
   @ApiBody({ type: RegisterDto })
@@ -104,14 +104,14 @@ export class AuthController {
 
   @Get('check-email')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   checkEmail(@Query('email') email: string) {
     return this.authService.checkEmail(email);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @SkipCsrf()
   @ApiOperation({ summary: 'Log into an existing account' })
   @ApiBody({ type: LoginDto })
@@ -169,8 +169,8 @@ export class AuthController {
     // token in memory and a rotated cookie here would silently invalidate the
     // token the client still holds, breaking the next mutation.
     const existingValue = (
-      (req.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE] ?? ""
-    ).split(".")[0];
+      (req.cookies as Record<string, string> | undefined)?.[CSRF_COOKIE] ?? ''
+    ).split('.')[0];
     let csrfValue: string;
     if (existingValue) {
       csrfValue = existingValue;
@@ -185,7 +185,7 @@ export class AuthController {
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @SkipCsrf()
   verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(dto, {
@@ -196,7 +196,7 @@ export class AuthController {
 
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
   resendOtp(@Body() dto: ResendOtpDto, @Req() req: Request) {
     return this.authService.resendOtp(dto, {
@@ -207,7 +207,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
   @ApiCookieAuth()
   async logout(@Req() req: Request) {
@@ -227,7 +227,7 @@ export class AuthController {
 
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
   @ApiCookieAuth()
   async logoutAll(@Req() req: Request) {
@@ -244,7 +244,7 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
   forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
     return this.authService.forgotPassword(dto, {
@@ -255,7 +255,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
   resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     return this.authService.resetPassword(dto, {
@@ -266,7 +266,7 @@ export class AuthController {
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
   @ApiCookieAuth()
   changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {

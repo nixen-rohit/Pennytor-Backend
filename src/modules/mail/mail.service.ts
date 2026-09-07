@@ -388,7 +388,11 @@ export class MailService {
 
   // ─── Fixed Deposit Emails ────────────────────────────────────────────────
 
-  async sendFDOTPEmail(to: string, otp: string, params: { firstName: string; planId: string; depositAmount: number }) {
+  async sendFDOTPEmail(
+    to: string,
+    otp: string,
+    params: { firstName: string; planId: string; depositAmount: number },
+  ) {
     const html = this.renderTemplate('fd-otp', {
       firstName: params.firstName,
       otp,
@@ -397,10 +401,23 @@ export class MailService {
       depositAmount: params.depositAmount.toLocaleString('en-IN'),
       year: new Date().getFullYear(),
     });
-    await this.send({ to, subject: '🏦 Fixed Deposit — OTP Verification', html });
+    await this.send({
+      to,
+      subject: '🏦 Fixed Deposit — OTP Verification',
+      html,
+    });
   }
 
-  async sendFDAppliedEmail(to: string, params: { firstName: string; applicationId: string; planId: string; depositAmount: number; lockInMonths: number }) {
+  async sendFDAppliedEmail(
+    to: string,
+    params: {
+      firstName: string;
+      applicationId: string;
+      planId: string;
+      depositAmount: number;
+      lockInMonths: number;
+    },
+  ) {
     const html = this.renderTemplate('fd-applied', {
       firstName: params.firstName,
       applicationId: params.applicationId,
@@ -409,15 +426,28 @@ export class MailService {
       lockInMonths: params.lockInMonths,
       year: new Date().getFullYear(),
     });
-    await this.send({ to, subject: '🏦 Fixed Deposit Application Submitted', html });
+    await this.send({
+      to,
+      subject: '🏦 Fixed Deposit Application Submitted',
+      html,
+    });
   }
 
-  async sendFDApprovedEmail(to: string, params: {
-    firstName: string;
-    applicationId: string; planId: string; depositAmount: number;
-    lockInMonths: number; payoutMode: string; emiAmount: number;
-    totalEmis: number; totalPayout: number; nextPayoutAt: Date | null;
-  }) {
+  async sendFDApprovedEmail(
+    to: string,
+    params: {
+      firstName: string;
+      applicationId: string;
+      planId: string;
+      depositAmount: number;
+      lockInMonths: number;
+      payoutMode: string;
+      emiAmount: number;
+      totalEmis: number;
+      totalPayout: number;
+      nextPayoutAt: Date | null;
+    },
+  ) {
     const html = this.renderTemplate('fd-approved', {
       firstName: params.firstName,
       applicationId: params.applicationId,
@@ -428,18 +458,32 @@ export class MailService {
       totalEmis: params.totalEmis,
       totalPayout: params.totalPayout.toLocaleString('en-IN'),
       nextPayoutDate: params.nextPayoutAt
-        ? new Date(params.nextPayoutAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+        ? new Date(params.nextPayoutAt).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })
         : 'N/A',
       year: new Date().getFullYear(),
     });
-    await this.send({ to, subject: '🏦 Fixed Deposit Approved — Payout Cycle Started', html });
+    await this.send({
+      to,
+      subject: '🏦 Fixed Deposit Approved — Payout Cycle Started',
+      html,
+    });
   }
 
-  async sendFDEMICreditedEmail(to: string, params: {
-    firstName: string;
-    applicationId: string; planId: string; emiNumber: number;
-    amount: number; newBalance: number;
-  }) {
+  async sendFDEMICreditedEmail(
+    to: string,
+    params: {
+      firstName: string;
+      applicationId: string;
+      planId: string;
+      emiNumber: number;
+      amount: number;
+      newBalance: number;
+    },
+  ) {
     const html = this.renderTemplate('fd-emi-credited', {
       firstName: params.firstName,
       applicationId: params.applicationId,
@@ -452,10 +496,16 @@ export class MailService {
     await this.send({ to, subject: '💸 Fixed Deposit EMI Credited', html });
   }
 
-  async sendFDMaturedEmail(to: string, params: {
-    firstName: string;
-    applicationId: string; planId: string; totalPayout: number; depositAmount: number;
-  }) {
+  async sendFDMaturedEmail(
+    to: string,
+    params: {
+      firstName: string;
+      applicationId: string;
+      planId: string;
+      totalPayout: number;
+      depositAmount: number;
+    },
+  ) {
     const html = this.renderTemplate('fd-matured', {
       firstName: params.firstName,
       applicationId: params.applicationId,
@@ -464,7 +514,11 @@ export class MailService {
       depositAmount: params.depositAmount.toLocaleString('en-IN'),
       year: new Date().getFullYear(),
     });
-    await this.send({ to, subject: '🎉 Fixed Deposit Matured — Congratulations!', html });
+    await this.send({
+      to,
+      subject: '🎉 Fixed Deposit Matured — Congratulations!',
+      html,
+    });
   }
 
   private async send(params: {

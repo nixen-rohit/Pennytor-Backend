@@ -2,9 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, User } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
-import { generateReferralCode } from '../../common/utils/referral-code.util';
 import { generateClientId } from '../../common/utils/client-id.util';
 
+/**
+ * Spec §2: a referral code MUST NOT be generated at registration.
+ * Instead, it is generated later, when the user's first investment is
+ * admin-verified. This service creates the user with `referralCode =
+ * null`; the referral module will fill it in on `onInvestmentVerified`.
+ *
+ * The userType field is also NOT set by the registration form — every
+ * public registration creates a `pennytor_user`. SUPER_USER accounts
+ * are created through a separate admin path (see SuperUserService).
+ */
 @Injectable()
 export class UsersService {
   constructor(
@@ -18,58 +27,19 @@ export class UsersService {
     });
   }
 
-  findByReferralCode(code: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { ownReferralCode: code.toUpperCase().trim() },
+  /** Spec §1: ADMIN users do not have — and cannot be issued — a code. */
+  async findByReferralCodeAndEligible(code: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        referralCode: code,
+        role: { not: 'ADMIN' },
+        referralCodeStatus: 'ACTIVE',
+      },
     });
   }
 
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
-  }
-
-  /**
-   * Creates the user + their consent record in a single transaction —
-   * we never want a user to exist without a recorded consent decision.
-   */
-  async createWithConsent(params: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    passwordHash: string;
-    referredBy?: string;
-    marketingEmails: boolean;
-  }): Promise<User> {
-    const referralCode = await this.generateUniqueReferralCode();
-    const clientId = await this.generateUniqueClientId();
-
-    return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          firstName: params.firstName,
-          lastName: params.lastName,
-          email: params.email.toLowerCase().trim(),
-          passwordHash: params.passwordHash,
-          ownReferralCode: referralCode,
-          clientId,
-          referredBy: params.referredBy,
-          role: 'USER', // never accept role from the client — see RegisterDto, it has no role field
-        },
-      });
-
-      await tx.userConsent.create({
-        data: {
-          userId: user.id,
-          termsAccepted: true,
-          termsAcceptedAt: new Date(),
-          privacyPolicyAccepted: true,
-          privacyPolicyAcceptedAt: new Date(),
-          marketingEmails: params.marketingEmails,
-        },
-      });
-
-      return user;
-    });
   }
 
   markEmailVerified(userId: string): Promise<User> {
@@ -116,22 +86,6 @@ export class UsersService {
       where: { id: userId },
       data,
     });
-  }
-
-  /** Retries on the rare unique-constraint collision rather than trusting randomness alone. */
-  private async generateUniqueReferralCode(): Promise<string> {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const code = generateReferralCode();
-      const existing = await this.prisma.user.findUnique({
-        where: { ownReferralCode: code },
-        select: { id: true },
-      });
-      if (!existing) return code;
-    }
-    throw new Prisma.PrismaClientKnownRequestError(
-      'Failed to generate a unique referral code after 5 attempts',
-      { code: 'P2002', clientVersion: 'n/a' },
-    );
   }
 
   async approveUser(userId: string) {

@@ -13,6 +13,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionService } from '../session/session.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ReferralService } from '../referral/referral.service';
 import { hashPassword, verifyPassword } from '../../common/utils/password.util';
 import {
   generateOpaqueToken,
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly sessionService: SessionService,
+    private readonly referralService: ReferralService,
   ) {
     this.resetExpiryMinutes = this.config.get<number>(
       'PASSWORD_RESET_EXPIRY_MINUTES',
@@ -62,31 +64,44 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, ctx: RequestContext) {
-    // Mass-assignment protection: only whitelisted DTO fields reach this
-    // point (ValidationPipe whitelist + forbidNonWhitelisted in main.ts).
-    const existingUser = await this.usersService.findByEmail(dto.email);
-
-    if (existingUser) {
-      throw new ConflictException('An account with this email already exists.');
+    // Spec §4: every public registration MUST come in via a referral
+    // code. The ReferralService.registerWithReferral method handles
+    // all server-side validation, the direct relationship, and the
+    // user/consent insert in a single transaction.
+    if (!dto.referralCode) {
+      throw new BadRequestException('Invalid or unavailable referral code.');
     }
 
     const passwordHash = await hashPassword(dto.password);
 
-    let created: Awaited<ReturnType<UsersService['createWithConsent']>>;
+    let created: { id: string; clientId: string | null };
 
     try {
-      created = await this.usersService.createWithConsent({
+      const result = await this.referralService.registerWithReferral({
         firstName: dto.firstName,
         lastName: dto.lastName,
         email: dto.email,
         passwordHash,
-        referredBy: dto.referralCode,
         marketingEmails: dto.marketingEmails ?? false,
+        referralCode: dto.referralCode,
       });
+      created = { id: result.user.id, clientId: result.user.clientId };
     } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        // Propagate the generic "Invalid or unavailable referral code."
+        // message — never leak why the code was rejected.
+        throw new BadRequestException(
+          error.message?.includes('referral')
+            ? error.message
+            : 'Invalid or unavailable referral code.',
+        );
+      }
       // Two simultaneous requests can both pass the findByEmail check.
-      // The DB UNIQUE index is the source of truth — catch the race here
-      // and surface it as a 409 rather than a 500.
+      // The DB UNIQUE index is the source of truth — catch the race
+      // here and surface it as a 409 rather than a 500.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002' &&
@@ -107,9 +122,17 @@ export class AuthService {
       action: 'REGISTER',
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+      metadata: { viaReferralCode: dto.referralCode },
     });
 
-    await this.otpService.generate(created.id, 'EMAIL_VERIFY');
+    const otp = await this.otpService.generate(created.id, 'EMAIL_VERIFY');
+
+    await this.mailService.sendVerificationEmail({
+      to: dto.email,
+      firstName: dto.firstName,
+      otp,
+      clientId: created.clientId,
+    });
 
     return {
       message: 'Registration successful. Please verify your email.',
@@ -237,6 +260,8 @@ export class AuthService {
           lastName: user.lastName,
           email: user.email,
           role: user.role,
+          userType: user.userType,
+          referralEligible: user.referralEligible,
           isApproved: user.isApproved,
         },
       },
@@ -262,6 +287,8 @@ export class AuthService {
           lastName: user.lastName,
           email: user.email,
           role: user.role,
+          userType: user.userType,
+          referralEligible: user.referralEligible,
           isApproved: user.isApproved,
           clientId: user.clientId,
         },

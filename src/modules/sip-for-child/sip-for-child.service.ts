@@ -11,6 +11,8 @@ import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { SIPForChildRepository } from './sip-for-child.repository';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 import { verifyPassword } from '../../common/utils/password.util';
 import {
   CreateSIPForChildApplicationDto,
@@ -47,6 +49,8 @@ export class SIPForChildService {
     private readonly mailService: MailService,
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly referralService: ReferralService,
+    private readonly kycService: KycService,
   ) {}
 
   async getSchemes(): Promise<SIPForChildScheme[]> {
@@ -103,16 +107,15 @@ export class SIPForChildService {
     );
 
     if (scheme) {
-      const schemeData = (await this.getSchemes()).find(
-        (s) => s.id === scheme,
-      );
+      const schemeData = (await this.getSchemes()).find((s) => s.id === scheme);
 
       await this.mailService.sendSipForChildOtpEmail({
         to: user.email,
         firstName: user.firstName,
         otp: plainOtp,
         scheme: `SIP for Child - ${schemeData?.name || scheme}`,
-        monthlyPremium: schemeData?.monthlyInvestment.toLocaleString('en-IN') || 'N/A',
+        monthlyPremium:
+          schemeData?.monthlyInvestment.toLocaleString('en-IN') || 'N/A',
         duration: '10 Years (120 months)',
         annualReturn: schemeData?.annualReturn || 22,
       });
@@ -136,6 +139,9 @@ export class SIPForChildService {
     dto: CreateSIPForChildApplicationDto,
   ): Promise<{ id: string; status: string; amount: string }> {
     this.assertAttemptsAvailable(userId);
+
+    // Spec §9: KYC must be verified before any investment.
+    await this.kycService.assertKycVerified(userId);
 
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
@@ -192,7 +198,15 @@ export class SIPForChildService {
     userId: string,
     applicationId: string,
     dto: PayPremiumDto,
-  ): Promise<{ success: boolean; monthNumber: number; nextMonth: number | null; advanced: boolean }> {
+  ): Promise<{
+    success: boolean;
+    monthNumber: number;
+    nextMonth: number | null;
+    advanced: boolean;
+  }> {
+    // Spec §9: KYC must be verified before any premium payment.
+    await this.kycService.assertKycVerified(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
@@ -209,7 +223,9 @@ export class SIPForChildService {
     }
 
     const scheme = (await this.getSchemes()).find((s) => s.id === app.scheme);
-    const monthlyAmount = new Prisma.Decimal(scheme?.monthlyInvestment || app.amount);
+    const monthlyAmount = new Prisma.Decimal(
+      scheme?.monthlyInvestment || app.amount,
+    );
 
     // Verify password
     const { valid } = await verifyPassword(dto.password, user.passwordHash);
@@ -268,14 +284,20 @@ export class SIPForChildService {
 
     // Send confirmation email (best-effort)
     try {
-      const newMonthsPaid = result.nextMonth === null ? app.totalMonths : nextMonth - 1;
+      const newMonthsPaid =
+        result.nextMonth === null ? app.totalMonths : nextMonth - 1;
       const monthsRemaining = app.totalMonths - newMonthsPaid;
       let nextDue = 'Completed';
       if (result.nextMonth) {
         const d = new Date();
         d.setMonth(d.getMonth() + 1);
         d.setDate(1);
-        nextDue = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+        nextDue = d.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
       }
 
       await this.mailService.sendSipForChildPremiumPaidEmail({
@@ -285,7 +307,12 @@ export class SIPForChildService {
         amountPaid: monthlyAmount.toString(),
         monthNumber: nextMonth,
         totalMonths: app.totalMonths,
-        paymentDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+        paymentDate: new Date().toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        }),
         isAdvance: advanced,
         totalPaid: monthlyAmount.mul(newMonthsPaid).toString(),
         monthsRemaining,
@@ -341,13 +368,14 @@ export class SIPForChildService {
         submittedAt: r.submittedAt?.toISOString() ?? null,
         createdAt: r.createdAt.toISOString(),
         totalRoiPaid: '0',
-        premiums: r.premiums?.map((p) => ({
-          id: p.id,
-          monthNumber: p.monthNumber,
-          amount: p.amount.toString(),
-          status: p.status,
-          paidAt: p.paidAt?.toISOString() || null,
-        })) || [],
+        premiums:
+          r.premiums?.map((p) => ({
+            id: p.id,
+            monthNumber: p.monthNumber,
+            amount: p.amount.toString(),
+            status: p.status,
+            paidAt: p.paidAt?.toISOString() || null,
+          })) || [],
         cycle: r.startedAt
           ? {
               startAt: r.startedAt.toISOString(),
@@ -450,7 +478,8 @@ export class SIPForChildService {
         });
 
         if (result.rejected) {
-          const paidPremiums = freshApp.premiums?.filter((p) => p.status === 'PAID') || [];
+          const paidPremiums =
+            freshApp.premiums?.filter((p) => p.status === 'PAID') || [];
           const refundTotal = paidPremiums.reduce(
             (sum, p) => sum.add(p.amount),
             new (require('@prisma/client').Prisma.Decimal)(0),
@@ -473,7 +502,8 @@ export class SIPForChildService {
             missedMonth: freshApp.monthsPaid + 1,
             totalMonths: freshApp.totalMonths,
             dueDate,
-            monthlyPremium: scheme?.monthlyInvestment.toLocaleString('en-IN') || '0',
+            monthlyPremium:
+              scheme?.monthlyInvestment.toLocaleString('en-IN') || '0',
             monthsMissed: result.monthsMissed,
           });
         }
@@ -561,13 +591,14 @@ export class SIPForChildService {
         annualReturn: scheme?.annualReturn || 0,
         fundValue: scheme?.fundValue || 0,
       },
-      premiums: row.premiums?.map((p) => ({
-        id: p.id,
-        monthNumber: p.monthNumber,
-        amount: p.amount.toString(),
-        status: p.status,
-        paidAt: p.paidAt?.toISOString() || null,
-      })) || [],
+      premiums:
+        row.premiums?.map((p) => ({
+          id: p.id,
+          monthNumber: p.monthNumber,
+          amount: p.amount.toString(),
+          status: p.status,
+          paidAt: p.paidAt?.toISOString() || null,
+        })) || [],
     };
   }
 
@@ -583,11 +614,13 @@ export class SIPForChildService {
       );
     }
 
+    // Spec §10: on first verified investment, generate the referral
+    // code and activate eligibility. Idempotent.
+    await this.referralService.onInvestmentVerified(application.userId);
+
     // Send approval email (best-effort)
     try {
-      const scheme = (await this.getSchemes()).find(
-        (s) => s.id === row.scheme,
-      );
+      const scheme = (await this.getSchemes()).find((s) => s.id === row.scheme);
       const now = new Date();
       const maturityDate = new Date(now);
       maturityDate.setFullYear(maturityDate.getFullYear() + 10);
@@ -599,14 +632,30 @@ export class SIPForChildService {
         to: row.user.email,
         firstName: row.user.firstName,
         planName: `SIP for Child - ${scheme?.name || row.scheme}`,
-        monthlyPremium: scheme?.monthlyInvestment.toLocaleString('en-IN') || 'N/A',
+        monthlyPremium:
+          scheme?.monthlyInvestment.toLocaleString('en-IN') || 'N/A',
         duration: '10 Years',
         totalMonths: TOTAL_MONTHS,
         annualReturn: scheme?.annualReturn || 22,
         fundValue: scheme?.fundValue.toLocaleString('en-IN') || 'N/A',
-        cycleStartDate: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
-        firstPremiumDue: firstPremiumDue.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
-        maturityDate: maturityDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+        cycleStartDate: now.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        }),
+        firstPremiumDue: firstPremiumDue.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        }),
+        maturityDate: maturityDate.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        }),
       });
     } catch (error) {
       this.logger.error(`Approval email failed for application ${row.id}`);
@@ -635,6 +684,10 @@ export class SIPForChildService {
         'Application already processed; only pending applications can be rejected',
       );
     }
+
+    // Spec §11: recompute eligibility (may INACTIVE the code).
+    await this.referralService.onInvestmentDeactivated(row.userId);
+
     return { id, status: SIPStatus.REJECTED };
   }
 

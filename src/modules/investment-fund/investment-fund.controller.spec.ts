@@ -19,9 +19,7 @@ describe('InvestmentFundController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InvestmentFundController],
-      providers: [
-        { provide: InvestmentFundService, useValue: service },
-      ],
+      providers: [{ provide: InvestmentFundService, useValue: service }],
     })
       .overrideGuard(SessionAuthGuard)
       .useValue({ canActivate: () => true })
@@ -40,16 +38,30 @@ describe('InvestmentFundController', () => {
   describe('verifyPassword', () => {
     it('should call service with user id, password, scheme, and amount', async () => {
       const user = { id: 'user-1' } as any;
-      const dto = { password: 'Test1234', scheme: InvestmentScheme.A, amount: '1000000' };
+      const dto = {
+        password: 'Test1234',
+        scheme: InvestmentScheme.A,
+        amount: '1000000',
+      };
       await controller.verifyPassword(user, dto);
-      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith('user-1', 'Test1234', InvestmentScheme.A, '1000000');
+      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith(
+        'user-1',
+        'Test1234',
+        InvestmentScheme.A,
+        '1000000',
+      );
     });
   });
 
   describe('createApplication', () => {
     it('should call service with user id and dto', async () => {
       const user = { id: 'user-1' } as any;
-      const dto = { scheme: InvestmentScheme.A, amount: '1000000', password: 'Test1234', otp: '123456' };
+      const dto = {
+        scheme: InvestmentScheme.A,
+        amount: '1000000',
+        password: 'Test1234',
+        otp: '123456',
+      };
       await controller.createApplication(user, dto);
       expect(service.createApplication).toHaveBeenCalledWith('user-1', dto);
     });

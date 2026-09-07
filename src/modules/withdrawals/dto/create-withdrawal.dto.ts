@@ -19,8 +19,9 @@ export class CreateWithdrawalDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{1,10}(\.\d{1,2})?$/, {
-    message: 'amount must be a valid INR amount (e.g. 1000 or 2500.50)',
+  @Matches(/^[1-9]\d{0,9}(\.\d{1,2})?$/, {
+    message:
+      'amount must be a valid INR amount greater than 0 (e.g. 1000 or 2500.50)',
   })
   amount: string;
 

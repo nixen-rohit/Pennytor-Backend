@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { FixedDepositService } from './fixed-deposit.service';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -49,12 +54,16 @@ export class FDPayoutScheduler implements OnModuleInit, OnModuleDestroy {
     try {
       await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${LOCK_KEY})`;
       this.hasLock = false;
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
   }
 
   private async tick() {
     if (this.isRunning) {
-      this.logger.warn('FD payout tick skipped — previous run still in progress');
+      this.logger.warn(
+        'FD payout tick skipped — previous run still in progress',
+      );
       return;
     }
 
@@ -62,7 +71,9 @@ export class FDPayoutScheduler implements OnModuleInit, OnModuleDestroy {
     if (!this.hasLock) {
       const acquired = await this.acquireLock();
       if (!acquired) {
-        this.logger.debug('FD payout tick skipped — another instance holds the lock');
+        this.logger.debug(
+          'FD payout tick skipped — another instance holds the lock',
+        );
         return;
       }
     }

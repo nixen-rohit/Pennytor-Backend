@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { Prisma, SIPPlanId, SIPStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -290,7 +295,11 @@ export class SIPForChildRepository {
     userId: string,
     amount: Prisma.Decimal,
     monthNumber: number,
-  ): Promise<{ success: boolean; nextMonth: number | null; balanceAfter: Prisma.Decimal }> {
+  ): Promise<{
+    success: boolean;
+    nextMonth: number | null;
+    balanceAfter: Prisma.Decimal;
+  }> {
     return this.prisma.$transaction(async (tx) => {
       // Race-condition guard: re-check inside the transaction.
       // The DB unique constraint on (applicationId, monthNumber) is the
@@ -304,7 +313,9 @@ export class SIPForChildRepository {
         },
       });
       if (existingPremium) {
-        throw new ConflictException('Premium for this month has already been paid');
+        throw new ConflictException(
+          'Premium for this month has already been paid',
+        );
       }
 
       // Re-check application status inside the transaction (race: pay after reject)
@@ -379,7 +390,11 @@ export class SIPForChildRepository {
         },
       });
 
-      return { success: true, nextMonth: isComplete ? null : nextMonth, balanceAfter: updatedUser.balance };
+      return {
+        success: true,
+        nextMonth: isComplete ? null : nextMonth,
+        balanceAfter: updatedUser.balance,
+      };
     });
   }
 
@@ -415,7 +430,9 @@ export class SIPForChildRepository {
 
       // Check if the expected month was already paid (scheduler/payment race guard)
       const expectedMonth = app.monthsPaid + 1;
-      const alreadyPaid = app.premiums.some((p) => p.monthNumber === expectedMonth);
+      const alreadyPaid = app.premiums.some(
+        (p) => p.monthNumber === expectedMonth,
+      );
       if (alreadyPaid) {
         return { rejected: false, monthsMissed: 0, skipped: true };
       }

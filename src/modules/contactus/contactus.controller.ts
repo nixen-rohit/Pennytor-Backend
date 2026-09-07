@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Patch, Delete, Query, Param, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Query,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { SkipCsrf } from '../csrf/csrf.guard';

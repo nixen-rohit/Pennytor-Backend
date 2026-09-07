@@ -17,13 +17,13 @@ describe('InvestmentFundAdminController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InvestmentFundAdminController],
-      providers: [
-        { provide: InvestmentFundService, useValue: service },
-      ],
+      providers: [{ provide: InvestmentFundService, useValue: service }],
     })
       .overrideGuard(require('../../guards/roles.guard').RolesGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(require('../auth/guards/session-auth.guard').SessionAuthGuard)
+      .overrideGuard(
+        require('../auth/guards/session-auth.guard').SessionAuthGuard,
+      )
       .useValue({ canActivate: () => true })
       .compile();
 
@@ -32,7 +32,12 @@ describe('InvestmentFundAdminController', () => {
 
   describe('list', () => {
     it('should call service with query params', async () => {
-      const query = { page: 1, pageSize: 20, status: 'PENDING', search: 'test' } as any;
+      const query = {
+        page: 1,
+        pageSize: 20,
+        status: 'PENDING',
+        search: 'test',
+      } as any;
       await controller.list(query);
       expect(service.adminList).toHaveBeenCalledWith(query);
     });
@@ -58,7 +63,11 @@ describe('InvestmentFundAdminController', () => {
       const admin = { id: 'admin-1' } as any;
       const dto = { note: 'Invalid KYC documents' } as any;
       await controller.reject('app-1', admin, dto);
-      expect(service.reject).toHaveBeenCalledWith('app-1', 'admin-1', 'Invalid KYC documents');
+      expect(service.reject).toHaveBeenCalledWith(
+        'app-1',
+        'admin-1',
+        'Invalid KYC documents',
+      );
     });
   });
 

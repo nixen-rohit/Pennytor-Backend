@@ -8,7 +8,9 @@ describe('InvestmentRoiScheduler', () => {
 
   beforeEach(async () => {
     investService = {
-      processRoiPayouts: jest.fn().mockResolvedValue({ applicationsProcessed: 0, monthsCredited: 0 }),
+      processRoiPayouts: jest
+        .fn()
+        .mockResolvedValue({ applicationsProcessed: 0, monthsCredited: 0 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -58,7 +60,9 @@ describe('InvestmentRoiScheduler', () => {
     });
 
     it('should log error on failure', async () => {
-      investService.processRoiPayouts.mockRejectedValueOnce(new Error('DB error'));
+      investService.processRoiPayouts.mockRejectedValueOnce(
+        new Error('DB error'),
+      );
 
       jest.useFakeTimers();
       scheduler.onModuleInit();

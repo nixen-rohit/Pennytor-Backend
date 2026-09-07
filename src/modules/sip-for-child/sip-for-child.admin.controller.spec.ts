@@ -16,13 +16,13 @@ describe('SIPForChildAdminController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SIPForChildAdminController],
-      providers: [
-        { provide: SIPForChildService, useValue: service },
-      ],
+      providers: [{ provide: SIPForChildService, useValue: service }],
     })
       .overrideGuard(require('../../guards/roles.guard').RolesGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(require('../auth/guards/session-auth.guard').SessionAuthGuard)
+      .overrideGuard(
+        require('../auth/guards/session-auth.guard').SessionAuthGuard,
+      )
       .useValue({ canActivate: () => true })
       .compile();
 
@@ -31,7 +31,12 @@ describe('SIPForChildAdminController', () => {
 
   describe('listApplications', () => {
     it('should call service with parsed query params', async () => {
-      const query = { page: '2', pageSize: '10', status: 'PENDING', search: 'test' } as any;
+      const query = {
+        page: '2',
+        pageSize: '10',
+        status: 'PENDING',
+        search: 'test',
+      } as any;
       await controller.listApplications(query);
       expect(service.adminList).toHaveBeenCalledWith({
         page: 2,
@@ -81,7 +86,11 @@ describe('SIPForChildAdminController', () => {
       const admin = { id: 'admin-1' } as any;
       const dto = { note: 'Invalid documents' } as any;
       await controller.reject('app-1', dto, admin);
-      expect(service.reject).toHaveBeenCalledWith('app-1', 'admin-1', 'Invalid documents');
+      expect(service.reject).toHaveBeenCalledWith(
+        'app-1',
+        'admin-1',
+        'Invalid documents',
+      );
     });
   });
 });

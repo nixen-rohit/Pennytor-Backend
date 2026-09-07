@@ -70,10 +70,7 @@ export function applicationDir(
 }
 
 /** Absolute path to a deposit request's private directory. */
-export function depositDir(
-  storageRoot: string,
-  requestId: string,
-): string {
+export function depositDir(storageRoot: string, requestId: string): string {
   return path.join(path.resolve(storageRoot), 'deposits', requestId);
 }
 

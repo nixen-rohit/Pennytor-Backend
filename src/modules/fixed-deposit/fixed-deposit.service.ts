@@ -1,15 +1,25 @@
-import { Injectable, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { FixedDepositPlanId, OtpPurpose } from '@prisma/client';
 import { FixedDepositRepository, FDScheme } from './fixed-deposit.repository';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 import { verifyPassword } from '../../common/utils/password.util';
 
 @Injectable()
 export class FixedDepositService {
-  private readonly failedVerifications = new Map<string, { count: number; resetAt: Date }>();
+  private readonly failedVerifications = new Map<
+    string,
+    { count: number; resetAt: Date }
+  >();
   private readonly MAX_ATTEMPTS = 5;
 
   constructor(
@@ -18,16 +28,27 @@ export class FixedDepositService {
     private readonly mailService: MailService,
     private readonly audit: AuditService,
     private readonly prisma: PrismaService,
+    private readonly referralService: ReferralService,
+    private readonly kycService: KycService,
   ) {}
 
   getSchemes(): FDScheme[] {
     return this.repo.getSchemes();
   }
 
-  async verifyPasswordAndSendOtp(userId: string, password: string, planId: FixedDepositPlanId) {
+  async verifyPasswordAndSendOtp(
+    userId: string,
+    password: string,
+    planId: FixedDepositPlanId,
+  ) {
+    // Spec §9: KYC must be verified before starting any FD flow.
+    await this.kycService.assertKycVerified(userId);
+
     const existing = await this.repo.findActiveByUser(userId, planId);
     if (existing) {
-      throw new ConflictException('You already have an active Fixed Deposit application for this plan');
+      throw new ConflictException(
+        'You already have an active Fixed Deposit application for this plan',
+      );
     }
 
     this.assertAttemptsAvailable(userId);
@@ -49,7 +70,10 @@ export class FixedDepositService {
 
     this.failedVerifications.delete(userId);
 
-    const plainOtp = await this.otpService.generate(userId, OtpPurpose.WITHDRAW_SUBMIT);
+    const plainOtp = await this.otpService.generate(
+      userId,
+      OtpPurpose.WITHDRAW_SUBMIT,
+    );
 
     const scheme = this.repo.getSchemeById(planId);
     await this.mailService.sendFDOTPEmail(user.email, plainOtp, {
@@ -61,10 +85,20 @@ export class FixedDepositService {
     return { message: 'OTP sent to email' };
   }
 
-  async createApplication(userId: string, planId: FixedDepositPlanId, password: string, otp: string) {
+  async createApplication(
+    userId: string,
+    planId: FixedDepositPlanId,
+    password: string,
+    otp: string,
+  ) {
+    // Spec §9: KYC must be verified before any investment.
+    await this.kycService.assertKycVerified(userId);
+
     const existing = await this.repo.findActiveByUser(userId, planId);
     if (existing) {
-      throw new ConflictException('You already have an active Fixed Deposit application for this plan');
+      throw new ConflictException(
+        'You already have an active Fixed Deposit application for this plan',
+      );
     }
 
     this.assertAttemptsAvailable(userId);
@@ -115,16 +149,29 @@ export class FixedDepositService {
   }
 
   // Admin
-  async listApplications(query: { status?: string; search?: string; page: number; pageSize: number }) {
-    const status = query.status && query.status !== 'ALL'
-      ? query.status as any
-      : undefined;
-    const result = await this.repo.list({ status, search: query.search, page: query.page, pageSize: query.pageSize });
+  async listApplications(query: {
+    status?: string;
+    search?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    const status =
+      query.status && query.status !== 'ALL'
+        ? (query.status as any)
+        : undefined;
+    const result = await this.repo.list({
+      status,
+      search: query.search,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
     return {
       ...result,
       items: result.items.map((item: any) => ({
         ...item,
-        applicantName: item.user ? `${item.user.firstName} ${item.user.lastName}` : '',
+        applicantName: item.user
+          ? `${item.user.firstName} ${item.user.lastName}`
+          : '',
         applicantEmail: item.user?.email ?? '',
       })),
     };
@@ -136,10 +183,18 @@ export class FixedDepositService {
       throw new ConflictException('Application is no longer pending');
     }
 
-    this.audit.log({ action: 'APPROVE_DEPOSIT', userId: adminId, metadata: { targetId: id, planId: result.application?.planId } });
+    this.audit.log({
+      action: 'APPROVE_DEPOSIT',
+      userId: adminId,
+      metadata: { targetId: id, planId: result.application?.planId },
+    });
 
     const app = result.application;
     if (app) {
+      // Spec §10: on first verified investment, generate the referral
+      // code and activate eligibility. Idempotent.
+      await this.referralService.onInvestmentVerified(app.userId);
+
       const user = await this.repo.getUserWithPasswordHash(app.userId);
       if (user) {
         await this.mailService.sendFDApprovedEmail(user.email, {
@@ -161,12 +216,27 @@ export class FixedDepositService {
   }
 
   async rejectApplication(id: string, adminId: string, reason: string) {
+    // Look up the userId first so we can recompute eligibility after
+    // the rejection (spec §11).
+    const before = await this.prisma.fixedDepositApplication.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
     const result = await this.repo.rejectAndRefund(id, adminId, reason);
     if (result.conflicted) {
       throw new ConflictException('Application is no longer pending');
     }
 
-    this.audit.log({ action: 'REJECT_DEPOSIT', userId: adminId, metadata: { targetId: id, reason } });
+    this.audit.log({
+      action: 'REJECT_DEPOSIT',
+      userId: adminId,
+      metadata: { targetId: id, reason },
+    });
+
+    if (before?.userId) {
+      await this.referralService.onInvestmentDeactivated(before.userId);
+    }
 
     return { message: 'Application rejected' };
   }
@@ -178,11 +248,20 @@ export class FixedDepositService {
     let skipped = 0;
 
     for (const app of apps) {
-      if (!app.payouts[0]) { skipped++; continue; }
+      if (!app.payouts[0]) {
+        skipped++;
+        continue;
+      }
 
       try {
-        const result = await this.repo.creditPayout(app.id, app.payouts[0].emiNumber);
-        if (!result) { skipped++; continue; }
+        const result = await this.repo.creditPayout(
+          app.id,
+          app.payouts[0].emiNumber,
+        );
+        if (!result) {
+          skipped++;
+          continue;
+        }
         credited++;
 
         // Email (best-effort)
@@ -205,7 +284,9 @@ export class FixedDepositService {
               newBalance: Number(result.balanceAfter),
             });
           }
-        } catch (e) { /* email best-effort */ }
+        } catch (e) {
+          /* email best-effort */
+        }
       } catch (e) {
         skipped++;
       }

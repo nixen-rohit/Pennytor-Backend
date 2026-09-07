@@ -40,9 +40,22 @@ export class WithdrawalRepository {
     });
   }
 
+  findActiveByUser(userId: string): Promise<WithdrawalRequest | null> {
+    return this.prisma.withdrawalRequest.findFirst({
+      where: {
+        userId,
+        status: {
+          in: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /**
    * Atomic creation of withdrawal + wallet debit + ledger entry.
    * Returns the created withdrawal request.
+   * Uses conditional decrement to prevent balance going negative.
    */
   async createWithDebit(
     userId: string,
@@ -51,6 +64,19 @@ export class WithdrawalRepository {
     destination: string,
     userBalance: Prisma.Decimal,
   ): Promise<WithdrawalRequest> {
+    // Use conditional update to ensure balance doesn't go negative
+    const updatedUser = await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        balance: { gte: amount },
+      },
+      data: { balance: { decrement: amount } },
+    });
+
+    if (updatedUser.count === 0) {
+      throw new Error('Insufficient wallet balance');
+    }
+
     const [created] = await this.prisma.$transaction([
       this.prisma.withdrawalRequest.create({
         data: {
@@ -60,10 +86,6 @@ export class WithdrawalRepository {
           destination,
           submittedAt: new Date(),
         },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: { decrement: amount } },
       }),
       this.prisma.ledgerEntry.create({
         data: {
@@ -173,51 +195,6 @@ export class WithdrawalRepository {
     ]);
 
     return { items, total };
-  }
-
-  async setStatus(
-    id: string,
-    status: WithdrawalStatus,
-    reviewedBy: string,
-    note?: string | null,
-  ): Promise<WithdrawalRequest> {
-    return this.prisma.withdrawalRequest.update({
-      where: { id },
-      data: {
-        status,
-        reviewedBy,
-        reviewedAt: new Date(),
-        ...(note !== undefined ? { reviewNote: note } : {}),
-      },
-    });
-  }
-
-  /**
-   * Marks the request VERIFIED and debits the user's wallet in a single
-   * transaction, so an approval can never debit without the status flip.
-   */
-  async approveAndDebit(
-    id: string,
-    userId: string,
-    reviewedBy: string,
-    amount: Prisma.Decimal,
-  ): Promise<WithdrawalRequest> {
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.withdrawalRequest.update({
-        where: { id },
-        data: {
-          status: WithdrawalStatus.VERIFIED,
-          reviewedBy,
-          reviewedAt: new Date(),
-          reviewNote: null,
-        },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: { decrement: amount } },
-      }),
-    ]);
-    return updated;
   }
 
   /** Production approve path: conditional flip to VERIFIED (no debit - already done at creation). */

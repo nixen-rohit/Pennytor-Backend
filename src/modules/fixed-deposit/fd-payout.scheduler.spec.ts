@@ -10,7 +10,9 @@ describe('FDPayoutScheduler', () => {
 
   beforeEach(async () => {
     fdService = {
-      processPayouts: jest.fn().mockResolvedValue({ total: 0, credited: 0, skipped: 0 }),
+      processPayouts: jest
+        .fn()
+        .mockResolvedValue({ total: 0, credited: 0, skipped: 0 }),
     };
 
     prisma = {
@@ -75,7 +77,12 @@ describe('FDPayoutScheduler', () => {
 
     it('should not run concurrent ticks', async () => {
       fdService.processPayouts.mockImplementation(() => {
-        return new Promise((resolve) => setTimeout(() => resolve({ total: 0, credited: 0, skipped: 0 }), 5000));
+        return new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ total: 0, credited: 0, skipped: 0 }),
+            5000,
+          ),
+        );
       });
 
       scheduler.onModuleInit();
@@ -102,7 +109,11 @@ describe('FDPayoutScheduler', () => {
       await Promise.resolve();
 
       // Second tick should run because isRunning was reset
-      fdService.processPayouts.mockResolvedValue({ total: 0, credited: 0, skipped: 0 });
+      fdService.processPayouts.mockResolvedValue({
+        total: 0,
+        credited: 0,
+        skipped: 0,
+      });
       jest.advanceTimersByTime(60 * 60 * 1000);
       await Promise.resolve();
 

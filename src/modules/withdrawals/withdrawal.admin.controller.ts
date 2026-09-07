@@ -5,7 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,7 +19,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
 import { ListWithdrawalsQueryDto } from './dto/list-withdrawals-query.dto';
-import { UpdateWithdrawalStatusDto } from './dto/update-withdrawal-status.dto';
 import { RejectWithdrawalDto } from './dto/reject-withdrawal.dto';
 
 /**
@@ -50,25 +48,6 @@ export class WithdrawalAdminController {
   @ApiOperation({ summary: 'Withdrawal request detail' })
   getWithdrawal(@Param('id') id: string) {
     return this.withdrawalService.getWithdrawalDetail(id);
-  }
-
-  @Patch(':id/status')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Review decision: UNDER_REVIEW / VERIFIED / REJECTED',
-  })
-  updateStatus(
-    @Param('id') id: string,
-    @CurrentUser() admin: AuthUser,
-    @Body() dto: UpdateWithdrawalStatusDto,
-  ) {
-    return this.withdrawalService.updateStatus(
-      id,
-      admin.id,
-      dto.status,
-      dto.note,
-    );
   }
 
   /** Approve — atomic debit + ledger + audit; only pending can be approved (409 otherwise). */

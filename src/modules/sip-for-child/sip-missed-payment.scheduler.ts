@@ -23,9 +23,7 @@ export class SIPMissedPaymentScheduler
   private initialTimer?: ReturnType<typeof setTimeout>;
   private isRunning = false;
 
-  constructor(
-    private readonly sipForChildService: SIPForChildService,
-  ) {}
+  constructor(private readonly sipForChildService: SIPForChildService) {}
 
   onModuleInit() {
     this.initialTimer = setTimeout(() => void this.tick(), 20_000);
@@ -42,7 +40,9 @@ export class SIPMissedPaymentScheduler
 
   private async tick() {
     if (this.isRunning) {
-      this.logger.warn('Missed-payment tick skipped — previous run still in progress');
+      this.logger.warn(
+        'Missed-payment tick skipped — previous run still in progress',
+      );
       return;
     }
 

@@ -20,9 +20,7 @@ describe('SIPForChildController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SIPForChildController],
-      providers: [
-        { provide: SIPForChildService, useValue: service },
-      ],
+      providers: [{ provide: SIPForChildService, useValue: service }],
     })
       .overrideGuard(SessionAuthGuard)
       .useValue({ canActivate: () => true })
@@ -43,14 +41,23 @@ describe('SIPForChildController', () => {
       const user = { id: 'user-1' } as any;
       const dto = { password: 'Test1234', scheme: 'PLAN_5000' as SIPPlanId };
       await controller.verifyPassword(user, dto);
-      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith('user-1', 'Test1234', 'PLAN_5000', undefined);
+      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith(
+        'user-1',
+        'Test1234',
+        'PLAN_5000',
+        undefined,
+      );
     });
   });
 
   describe('createApplication', () => {
     it('should call service with user id and dto', async () => {
       const user = { id: 'user-1' } as any;
-      const dto = { scheme: 'PLAN_5000' as SIPPlanId, password: 'Test1234', otp: '123456' };
+      const dto = {
+        scheme: 'PLAN_5000' as SIPPlanId,
+        password: 'Test1234',
+        otp: '123456',
+      };
       await controller.createApplication(user, dto);
       expect(service.createApplication).toHaveBeenCalledWith('user-1', dto);
     });

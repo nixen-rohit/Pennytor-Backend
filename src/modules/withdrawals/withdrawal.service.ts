@@ -18,6 +18,9 @@ import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 /** Max wrong-password verifications per user per calendar day. */
 const MAX_DAILY_FAILED_VERIFICATIONS = 5;
 
+/** Maximum single withdrawal amount in INR. */
+const MAX_WITHDRAWAL_AMOUNT = 500_000;
+
 @Injectable()
 export class WithdrawalService {
   private readonly logger = new Logger(WithdrawalService.name);
@@ -116,18 +119,51 @@ export class WithdrawalService {
     };
   }
 
+  async getMyLatest(userId: string) {
+    const active = await this.repository.findActiveByUser(userId);
+    if (active) {
+      return {
+        hasActive: true,
+        withdrawal: this.toUserView(active),
+      };
+    }
+
+    const rows = await this.repository.listMine(userId);
+    if (rows.length === 0) {
+      return { hasActive: false, withdrawal: null };
+    }
+
+    const latest = rows[0];
+    return {
+      hasActive: false,
+      withdrawal: this.toUserView(latest),
+    };
+  }
+
   /**
    * Creates a PENDING withdrawal request. The OTP and the account password
    * are both verified server-side, and the wallet must cover the amount.
    * The balance is debited IMMEDIATELY — refunded on admin rejection.
    */
   async createWithdrawal(userId: string, dto: CreateWithdrawalDto) {
+    const active = await this.repository.findActiveByUser(userId);
+    if (active) {
+      throw new ConflictException(
+        'You already have an active withdrawal request. Please wait for it to be processed.',
+      );
+    }
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
     const amount = new Prisma.Decimal(dto.amount);
     if (amount.lte(0)) {
       throw new BadRequestException('Withdrawal amount must be greater than 0');
+    }
+    if (amount.gt(MAX_WITHDRAWAL_AMOUNT)) {
+      throw new BadRequestException(
+        `Withdrawal amount must not exceed ₹${MAX_WITHDRAWAL_AMOUNT.toLocaleString('en-IN')}`,
+      );
     }
     if (amount.gt(user.balance)) {
       throw new BadRequestException(
@@ -142,13 +178,26 @@ export class WithdrawalService {
 
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, dto.otp);
 
-    const created = await this.repository.createWithDebit(
-      userId,
-      amount,
-      dto.method,
-      dto.destination,
-      user.balance,
-    );
+    let created;
+    try {
+      created = await this.repository.createWithDebit(
+        userId,
+        amount,
+        dto.method,
+        dto.destination,
+        user.balance,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Insufficient wallet balance'
+      ) {
+        throw new BadRequestException(
+          'Insufficient wallet balance for this withdrawal',
+        );
+      }
+      throw error;
+    }
 
     return {
       id: created.id,
@@ -212,49 +261,6 @@ export class WithdrawalService {
           }
         : null,
     };
-  }
-
-  /** Admin decision: UNDER_REVIEW / VERIFIED / REJECTED. */
-  async updateStatus(
-    id: string,
-    adminId: string,
-    status: WithdrawalStatus,
-    note?: string,
-  ) {
-    const row = await this.repository.findByIdPlain(id);
-    if (!row) throw new NotFoundException('Withdrawal request not found');
-
-    if (status === WithdrawalStatus.REJECTED && !note?.trim()) {
-      throw new BadRequestException(
-        'A rejection reason is required for this decision',
-      );
-    }
-
-    const effectiveNote = status === WithdrawalStatus.REJECTED ? note : null;
-
-    // Approving debits the wallet exactly once: if the request was already
-    // VERIFIED the transition did not happen, so no double debit.
-    let updated: WithdrawalRequest;
-    if (
-      status === WithdrawalStatus.VERIFIED &&
-      row.status !== WithdrawalStatus.VERIFIED
-    ) {
-      updated = await this.repository.approveAndDebit(
-        id,
-        row.userId,
-        adminId,
-        row.amount,
-      );
-    } else {
-      updated = await this.repository.setStatus(
-        id,
-        status,
-        adminId,
-        effectiveNote,
-      );
-    }
-
-    return { id: updated.id, status: updated.status };
   }
 
   /**

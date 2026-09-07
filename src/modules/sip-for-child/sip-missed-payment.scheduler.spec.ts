@@ -8,7 +8,9 @@ describe('SIPMissedPaymentScheduler', () => {
 
   beforeEach(async () => {
     sipService = {
-      processMissedPayments: jest.fn().mockResolvedValue({ checked: 0, missed: 0, rejected: 0 }),
+      processMissedPayments: jest
+        .fn()
+        .mockResolvedValue({ checked: 0, missed: 0, rejected: 0 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -75,7 +77,9 @@ describe('SIPMissedPaymentScheduler', () => {
     });
 
     it('should reset isRunning after error', async () => {
-      sipService.processMissedPayments.mockRejectedValueOnce(new Error('DB error'));
+      sipService.processMissedPayments.mockRejectedValueOnce(
+        new Error('DB error'),
+      );
 
       jest.useFakeTimers();
       scheduler.onModuleInit();
@@ -84,7 +88,11 @@ describe('SIPMissedPaymentScheduler', () => {
       await jest.advanceTimersByTimeAsync(0);
 
       // Next tick should run because isRunning was reset
-      sipService.processMissedPayments.mockResolvedValue({ checked: 1, missed: 0, rejected: 0 });
+      sipService.processMissedPayments.mockResolvedValue({
+        checked: 1,
+        missed: 0,
+        rejected: 0,
+      });
       jest.advanceTimersByTime(60 * 60 * 1000);
       await jest.advanceTimersByTimeAsync(0);
 

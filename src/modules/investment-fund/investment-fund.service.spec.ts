@@ -1,9 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException, ConflictException, HttpException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+  HttpException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InvestmentFundService } from './investment-fund.service';
 import { InvestmentFundRepository } from './investment-fund.repository';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 import { Prisma, InvestmentStatus } from '@prisma/client';
 import { InvestmentScheme } from './investment-fund.types';
 
@@ -18,8 +26,11 @@ describe('InvestmentFundService', () => {
   let repo: Record<string, any>;
   let otpService: Record<string, any>;
   let mailService: Record<string, any>;
+  let kycService: Record<string, any>;
 
-  const mockVerifyPassword = verifyPassword as jest.MockedFunction<typeof verifyPassword>;
+  const mockVerifyPassword = verifyPassword as jest.MockedFunction<
+    typeof verifyPassword
+  >;
 
   beforeEach(async () => {
     repo = {
@@ -50,12 +61,25 @@ describe('InvestmentFundService', () => {
       sendWithdrawalOtpEmail: jest.fn(),
     };
 
+    kycService = {
+      assertKycVerified: jest.fn().mockResolvedValue(undefined),
+      getKycStatus: jest.fn().mockResolvedValue('VERIFIED'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvestmentFundService,
         { provide: InvestmentFundRepository, useValue: repo },
         { provide: OtpService, useValue: otpService },
         { provide: MailService, useValue: mailService },
+        {
+          provide: ReferralService,
+          useValue: {
+            onInvestmentVerified: jest.fn().mockResolvedValue(undefined),
+            onInvestmentDeactivated: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: KycService, useValue: kycService },
       ],
     }).compile();
 
@@ -104,7 +128,12 @@ describe('InvestmentFundService', () => {
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
 
-      const result = await service.verifyPasswordAndSendOtp(userId, password, 'A', '1000000');
+      const result = await service.verifyPasswordAndSendOtp(
+        userId,
+        password,
+        'A',
+        '1000000',
+      );
       expect(result).toEqual({ success: true });
       expect(otpService.generate).toHaveBeenCalled();
     });
@@ -136,7 +165,9 @@ describe('InvestmentFundService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       for (let i = 0; i < 5; i++) {
-        try { await service.verifyPasswordAndSendOtp(userId, password, 'A'); } catch {}
+        try {
+          await service.verifyPasswordAndSendOtp(userId, password, 'A');
+        } catch {}
       }
 
       await expect(
@@ -154,7 +185,9 @@ describe('InvestmentFundService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       for (let i = 0; i < 4; i++) {
-        try { await service.verifyPasswordAndSendOtp(userId, password, 'A'); } catch {}
+        try {
+          await service.verifyPasswordAndSendOtp(userId, password, 'A');
+        } catch {}
       }
 
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
@@ -171,7 +204,12 @@ describe('InvestmentFundService', () => {
 
   describe('createApplication', () => {
     const userId = 'user-1';
-    const dto = { scheme: InvestmentScheme.A, amount: '1000000', password: 'Test1234', otp: '123456' };
+    const dto = {
+      scheme: InvestmentScheme.A,
+      amount: '1000000',
+      password: 'Test1234',
+      otp: '123456',
+    };
 
     it('should create application with wallet debit', async () => {
       repo.getUserWithPasswordHash.mockResolvedValue({
@@ -190,7 +228,9 @@ describe('InvestmentFundService', () => {
 
     it('should throw if user not found', async () => {
       repo.getUserWithPasswordHash.mockResolvedValue(null);
-      await expect(service.createApplication(userId, dto)).rejects.toThrow(NotFoundException);
+      await expect(service.createApplication(userId, dto)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw for amount <= 0', async () => {
@@ -246,7 +286,9 @@ describe('InvestmentFundService', () => {
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
-      await expect(service.createApplication(userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createApplication(userId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw if active application exists', async () => {
@@ -255,9 +297,13 @@ describe('InvestmentFundService', () => {
         passwordHash: 'hash',
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
-      repo.createWithWalletDebit.mockRejectedValue(new Error('ACTIVE_APPLICATION_EXISTS'));
+      repo.createWithWalletDebit.mockRejectedValue(
+        new Error('ACTIVE_APPLICATION_EXISTS'),
+      );
 
-      await expect(service.createApplication(userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createApplication(userId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw if insufficient balance', async () => {
@@ -266,9 +312,13 @@ describe('InvestmentFundService', () => {
         passwordHash: 'hash',
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
-      repo.createWithWalletDebit.mockRejectedValue(new Error('INSUFFICIENT_BALANCE'));
+      repo.createWithWalletDebit.mockRejectedValue(
+        new Error('INSUFFICIENT_BALANCE'),
+      );
 
-      await expect(service.createApplication(userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createApplication(userId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -376,7 +426,13 @@ describe('InvestmentFundService', () => {
         items: [
           {
             id: 'app-1',
-            user: { firstName: 'Test', lastName: 'User', email: 'test@test.com', clientId: 'C001', kycApplication: null },
+            user: {
+              firstName: 'Test',
+              lastName: 'User',
+              email: 'test@test.com',
+              clientId: 'C001',
+              kycApplication: null,
+            },
             scheme: InvestmentScheme.A,
             amount: new Prisma.Decimal(1000000),
             status: InvestmentStatus.PENDING,
@@ -406,7 +462,13 @@ describe('InvestmentFundService', () => {
         createdAt: new Date('2025-12-01'),
         reviewNote: null,
         reviewedAt: null,
-        user: { firstName: 'Test', lastName: 'User', email: 'test@test.com', clientId: 'C001', kycApplication: null },
+        user: {
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@test.com',
+          clientId: 'C001',
+          kycApplication: null,
+        },
       });
       repo.totalRoiPaid.mockResolvedValue(new Prisma.Decimal(210000));
 
@@ -417,7 +479,9 @@ describe('InvestmentFundService', () => {
 
     it('should throw if application not found', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.adminDetail('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.adminDetail('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -430,7 +494,11 @@ describe('InvestmentFundService', () => {
       });
       repo.approveAndStartCycle.mockResolvedValue({
         conflicted: false,
-        application: { id: 'app-1', verifiedAt: new Date(), user: { email: 'test@test.com', firstName: 'Test' } },
+        application: {
+          id: 'app-1',
+          verifiedAt: new Date(),
+          user: { email: 'test@test.com', firstName: 'Test' },
+        },
       });
 
       const result = await service.approve('app-1', 'admin-1');
@@ -439,7 +507,9 @@ describe('InvestmentFundService', () => {
 
     it('should throw if application not found', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.approve('nonexistent', 'admin-1')).rejects.toThrow(NotFoundException);
+      await expect(service.approve('nonexistent', 'admin-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ConflictException if already processed', async () => {
@@ -448,9 +518,14 @@ describe('InvestmentFundService', () => {
         scheme: InvestmentScheme.A,
         user: { email: 'test@test.com', firstName: 'Test' },
       });
-      repo.approveAndStartCycle.mockResolvedValue({ conflicted: true, application: null });
+      repo.approveAndStartCycle.mockResolvedValue({
+        conflicted: true,
+        application: null,
+      });
 
-      await expect(service.approve('app-1', 'admin-1')).rejects.toThrow(ConflictException);
+      await expect(service.approve('app-1', 'admin-1')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -464,9 +539,9 @@ describe('InvestmentFundService', () => {
     });
 
     it('should throw if reason too short', async () => {
-      await expect(
-        service.reject('app-1', 'admin-1', 'ab'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.reject('app-1', 'admin-1', 'ab')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw if application not found', async () => {

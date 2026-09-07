@@ -67,7 +67,7 @@ export class ContactUsService {
 
     return this.prisma.contactMessage.update({
       where: { id },
-      data: { 
+      data: {
         status: dto.status,
         reviewNote: dto.note || null,
       },

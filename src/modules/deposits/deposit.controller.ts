@@ -34,21 +34,28 @@ export class DepositController {
   constructor(private readonly depositService: DepositService) {}
 
   @Get('mine')
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'List the caller deposit requests' })
   myDeposits(@CurrentUser() user: AuthUser) {
     return this.depositService.myDeposits(user.id);
   }
 
+  @Get('latest')
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Get the latest deposit status for the caller' })
+  getMyLatest(@CurrentUser() user: AuthUser) {
+    return this.depositService.getMyLatest(user.id);
+  }
+
   @Get(':id')
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get a single deposit request by ID' })
   async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.depositService.getDeposit(user.id, id);
   }
 
   @Post()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ financial: { limit: 60, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(DEPOSIT_FILE_MAX_BYTES)),
   )

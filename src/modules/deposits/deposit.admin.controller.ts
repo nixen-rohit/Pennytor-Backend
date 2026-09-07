@@ -5,7 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  Patch,
   Post,
   Query,
   Res,
@@ -22,7 +21,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
 import { ListDepositsQueryDto } from './dto/list-deposits-query.dto';
-import { UpdateDepositStatusDto } from './dto/update-deposit-status.dto';
 import { RejectDepositDto } from './dto/reject-deposit.dto';
 import { contentDisposition } from '../../common/utils/storage.util';
 
@@ -84,24 +82,13 @@ export class DepositAdminController {
     stream.pipe(res);
   }
 
-  /** Review decision: UNDER_REVIEW / VERIFIED / REJECTED (+ optional note). */
-  @Patch(':id/status')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Update deposit request status (admin decision)' })
-  updateStatus(
-    @Param('id') id: string,
-    @CurrentUser() admin: AuthUser,
-    @Body() dto: UpdateDepositStatusDto,
-  ) {
-    return this.depositService.updateStatus(id, admin.id, dto.status, dto.note);
-  }
-
   /** Approve — atomic credit + ledger + audit; only pending can be approved (409 otherwise). */
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Approve a deposit (credits wallet + ledger, audited)' })
+  @ApiOperation({
+    summary: 'Approve a deposit (credits wallet + ledger, audited)',
+  })
   approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.depositService.approve(id, admin.id);
   }

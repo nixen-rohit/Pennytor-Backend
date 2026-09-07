@@ -1,4 +1,11 @@
-import { IsString, MinLength, MaxLength, IsEnum, IsOptional, Matches } from 'class-validator';
+import {
+  IsString,
+  MinLength,
+  MaxLength,
+  IsEnum,
+  IsOptional,
+  Matches,
+} from 'class-validator';
 import { FixedDepositPlanId } from '@prisma/client';
 
 export class VerifyFDPasswordDto {

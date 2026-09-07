@@ -7,9 +7,17 @@ import { OtpModule } from '../otp/otp.module';
 import { MailModule } from '../mail/mail.module';
 import { SessionModule } from '../session/session.module';
 import { CsrfModule } from '../csrf/csrf.module';
+import { ReferralModule } from '../referral/referral.module';
 
 @Module({
-  imports: [UsersModule, OtpModule, MailModule, SessionModule, CsrfModule],
+  imports: [
+    UsersModule,
+    OtpModule,
+    MailModule,
+    SessionModule,
+    CsrfModule,
+    ReferralModule,
+  ],
   controllers: [AuthController],
   providers: [AuthService, SessionAuthGuard],
   exports: [SessionAuthGuard],

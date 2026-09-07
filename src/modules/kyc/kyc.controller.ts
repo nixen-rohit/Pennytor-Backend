@@ -41,7 +41,7 @@ export class KycController {
 
   /** Upserts the caller's application as a DRAFT. */
   @Post('applications')
-  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
     summary: 'Create or update the caller KYC application (DRAFT)',
   })
@@ -65,7 +65,7 @@ export class KycController {
    * (enforced by the @@unique([applicationId, type]) constraint).
    */
   @Post('applications/:applicationId/files')
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)),
   )
@@ -103,7 +103,7 @@ export class KycController {
 
   /** Sends the submission OTP to the caller's registered email. */
   @Post('applications/:applicationId/otp')
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Send the KYC submission OTP email' })
   async sendOtp(
     @CurrentUser() user: AuthUser,
@@ -116,7 +116,7 @@ export class KycController {
 
   /** Verifies the OTP and submits the application. */
   @Post('applications/:applicationId/submit')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Verify OTP and submit the KYC application' })
   async submitApplication(
     @CurrentUser() user: AuthUser,

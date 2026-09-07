@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { Prisma, FixedDepositPlanId, FixedDepositStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -77,10 +82,7 @@ export class FixedDepositRepository {
     });
   }
 
-  async create(
-    userId: string,
-    planId: FixedDepositPlanId,
-  ) {
+  async create(userId: string, planId: FixedDepositPlanId) {
     const scheme = this.getSchemeById(planId);
     if (!scheme) throw new BadRequestException('Invalid plan');
 
@@ -122,7 +124,15 @@ export class FixedDepositRepository {
     return this.prisma.fixedDepositApplication.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, firstName: true, lastName: true, clientId: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            clientId: true,
+          },
+        },
         payouts: { orderBy: { emiNumber: 'asc' } },
       },
     });
@@ -141,7 +151,9 @@ export class FixedDepositRepository {
     if (query.search) {
       where.OR = [
         { user: { email: { contains: query.search, mode: 'insensitive' } } },
-        { user: { firstName: { contains: query.search, mode: 'insensitive' } } },
+        {
+          user: { firstName: { contains: query.search, mode: 'insensitive' } },
+        },
         { user: { lastName: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
@@ -150,7 +162,14 @@ export class FixedDepositRepository {
       this.prisma.fixedDepositApplication.findMany({
         where,
         include: {
-          user: { select: { email: true, firstName: true, lastName: true, clientId: true } },
+          user: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+              clientId: true,
+            },
+          },
           payouts: { orderBy: { emiNumber: 'asc' } },
         },
         orderBy: { createdAt: 'desc' },
@@ -180,7 +199,11 @@ export class FixedDepositRepository {
         select: { balance: true },
       });
       if (!user || user.balance < appRow.depositAmount) {
-        return { conflicted: true, application: null, reason: 'INSUFFICIENT_BALANCE' };
+        return {
+          conflicted: true,
+          application: null,
+          reason: 'INSUFFICIENT_BALANCE',
+        };
       }
 
       const now = new Date();
@@ -237,7 +260,9 @@ export class FixedDepositRepository {
 
   async rejectAndRefund(id: string, adminId: string, reason: string) {
     return this.prisma.$transaction(async (tx) => {
-      const app = await tx.fixedDepositApplication.findUnique({ where: { id } });
+      const app = await tx.fixedDepositApplication.findUnique({
+        where: { id },
+      });
       if (!app || app.status !== 'PENDING') {
         return { conflicted: true };
       }
@@ -264,7 +289,11 @@ export class FixedDepositRepository {
       },
       include: {
         user: { select: { id: true, email: true, firstName: true } },
-        payouts: { where: { status: 'PENDING' }, orderBy: { emiNumber: 'asc' }, take: 1 },
+        payouts: {
+          where: { status: 'PENDING' },
+          orderBy: { emiNumber: 'asc' },
+          take: 1,
+        },
       },
     });
   }
@@ -280,7 +309,9 @@ export class FixedDepositRepository {
       if (!payout || payout.status !== 'PENDING') return null;
 
       // Re-verify application is still VERIFIED
-      const app = await tx.fixedDepositApplication.findUnique({ where: { id: applicationId } });
+      const app = await tx.fixedDepositApplication.findUnique({
+        where: { id: applicationId },
+      });
       if (!app || app.status !== 'VERIFIED') return null;
 
       // Credit EMI to wallet
@@ -317,7 +348,9 @@ export class FixedDepositRepository {
         data: {
           emisPaid: newEmisPaid,
           lastPayoutAt: new Date(),
-          nextPayoutAt: isComplete ? null : this.calculateNextPayout(new Date(), app.payoutMode),
+          nextPayoutAt: isComplete
+            ? null
+            : this.calculateNextPayout(new Date(), app.payoutMode),
           status: isComplete ? 'COMPLETED' : app.status,
         },
       });

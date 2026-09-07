@@ -7,7 +7,12 @@ describe('FixedDepositController', () => {
   let controller: FixedDepositController;
   let service: Record<string, any>;
 
-  const mockUser = { id: 'user-1', email: 'test@test.com', firstName: 'Test', lastName: 'User' };
+  const mockUser = {
+    id: 'user-1',
+    email: 'test@test.com',
+    firstName: 'Test',
+    lastName: 'User',
+  };
 
   beforeEach(async () => {
     service = {
@@ -38,22 +43,40 @@ describe('FixedDepositController', () => {
 
   describe('verifyPassword', () => {
     it('should call service with user id, password, and planId', () => {
-      service.verifyPasswordAndSendOtp.mockResolvedValue({ message: 'OTP sent' });
+      service.verifyPasswordAndSendOtp.mockResolvedValue({
+        message: 'OTP sent',
+      });
 
-      controller.verifyPassword(mockUser as any, { password: 'Test1234', planId: 'FD_25000' as any });
+      controller.verifyPassword(mockUser as any, {
+        password: 'Test1234',
+        planId: 'FD_25000' as any,
+      });
 
-      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith('user-1', 'Test1234', 'FD_25000');
+      expect(service.verifyPasswordAndSendOtp).toHaveBeenCalledWith(
+        'user-1',
+        'Test1234',
+        'FD_25000',
+      );
     });
   });
 
   describe('createApplication', () => {
     it('should call service with user id, planId, password, and otp', () => {
-      const dto = { planId: 'FD_25000' as any, password: 'Test1234', otp: '123456' };
+      const dto = {
+        planId: 'FD_25000' as any,
+        password: 'Test1234',
+        otp: '123456',
+      };
       service.createApplication.mockResolvedValue({ id: 'app-1' });
 
       controller.createApplication(mockUser as any, dto);
 
-      expect(service.createApplication).toHaveBeenCalledWith('user-1', 'FD_25000', 'Test1234', '123456');
+      expect(service.createApplication).toHaveBeenCalledWith(
+        'user-1',
+        'FD_25000',
+        'Test1234',
+        '123456',
+      );
     });
   });
 

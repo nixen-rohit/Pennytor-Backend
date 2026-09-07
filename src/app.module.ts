@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './database/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -21,11 +22,13 @@ import { ContactUsModule } from './modules/contactus/contactus.module';
 import { InvestmentFundModule } from './modules/investment-fund/investment-fund.module';
 import { SIPForChildModule } from './modules/sip-for-child/sip-for-child.module';
 import { FixedDepositModule } from './modules/fixed-deposit/fixed-deposit.module';
+import { ReferralModule } from './modules/referral/referral.module';
 
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
+    ScheduleModule.forRoot(),
     AuditModule,
     SessionModule,
     CsrfModule,
@@ -34,8 +37,9 @@ import { FixedDepositModule } from './modules/fixed-deposit/fixed-deposit.module
       useFactory: (config: ConfigService) => ({
         throttlers: [
           {
+            name: 'default',
             ttl: config.get<number>('THROTTLE_TTL_SECONDS', 60) * 1000,
-            limit: config.get<number>('THROTTLE_LIMIT', 10),
+            limit: config.get<number>('THROTTLE_DEFAULT_LIMIT', 120),
           },
         ],
       }),
@@ -52,6 +56,7 @@ import { FixedDepositModule } from './modules/fixed-deposit/fixed-deposit.module
     InvestmentFundModule,
     SIPForChildModule,
     FixedDepositModule,
+    ReferralModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -95,12 +95,20 @@ export class FinanceRepository {
     const [depTotal, wdrTotal] = await Promise.all([
       queryDeposits
         ? this.prisma.depositRequest.count({
-            where: { ...dateWhere, ...(statusDep ? { status: statusDep } : {}), ...(userSearch ? { user: userSearch } : {}) },
+            where: {
+              ...dateWhere,
+              ...(statusDep ? { status: statusDep } : {}),
+              ...(userSearch ? { user: userSearch } : {}),
+            },
           })
         : Promise.resolve(0),
       queryWithdrawals
         ? this.prisma.withdrawalRequest.count({
-            where: { ...dateWhere, ...(statusWdr ? { status: statusWdr } : {}), ...(userSearch ? { user: userSearch } : {}) },
+            where: {
+              ...dateWhere,
+              ...(statusWdr ? { status: statusWdr } : {}),
+              ...(userSearch ? { user: userSearch } : {}),
+            },
           })
         : Promise.resolve(0),
     ]);
@@ -108,8 +116,10 @@ export class FinanceRepository {
     const total = depTotal + wdrTotal;
     if (total === 0) return { items: [], total };
 
-    const orderBy: Prisma.DepositRequestOrderByWithRelationInput[] =
-      toOrderBy(params.sortBy, params.sortOrder);
+    const orderBy: Prisma.DepositRequestOrderByWithRelationInput[] = toOrderBy(
+      params.sortBy,
+      params.sortOrder,
+    );
     const cmp = this.comparator(params.sortBy, params.sortOrder);
     const need = offset + limit;
 
@@ -120,10 +130,28 @@ export class FinanceRepository {
     let buffer: FinanceItem[] = [];
 
     type DepositWithUser = Prisma.DepositRequestGetPayload<{
-      include: { user: { select: { firstName: true; lastName: true; email: true; clientId: true } } };
+      include: {
+        user: {
+          select: {
+            firstName: true;
+            lastName: true;
+            email: true;
+            clientId: true;
+          };
+        };
+      };
     }>;
     type WithdrawalWithUser = Prisma.WithdrawalRequestGetPayload<{
-      include: { user: { select: { firstName: true; lastName: true; email: true; clientId: true } } };
+      include: {
+        user: {
+          select: {
+            firstName: true;
+            lastName: true;
+            email: true;
+            clientId: true;
+          };
+        };
+      };
     }>;
 
     while (buffer.length < need && !(depDone && wdrDone)) {
@@ -133,7 +161,11 @@ export class FinanceRepository {
       if (queryDeposits && !depDone) {
         depRows.push(
           ...(await this.prisma.depositRequest.findMany({
-            where: { ...dateWhere, ...(statusDep ? { status: statusDep } : {}), ...(userSearch ? { user: userSearch } : {}) },
+            where: {
+              ...dateWhere,
+              ...(statusDep ? { status: statusDep } : {}),
+              ...(userSearch ? { user: userSearch } : {}),
+            },
             include: { user: USER_SELECT },
             orderBy,
             skip: depSkip,
@@ -144,7 +176,11 @@ export class FinanceRepository {
       if (queryWithdrawals && !wdrDone) {
         wdrRows.push(
           ...(await this.prisma.withdrawalRequest.findMany({
-            where: { ...dateWhere, ...(statusWdr ? { status: statusWdr } : {}), ...(userSearch ? { user: userSearch } : {}) },
+            where: {
+              ...dateWhere,
+              ...(statusWdr ? { status: statusWdr } : {}),
+              ...(userSearch ? { user: userSearch } : {}),
+            },
             include: { user: USER_SELECT },
             orderBy,
             skip: wdrSkip,
@@ -214,8 +250,7 @@ export class FinanceRepository {
       method: type === 'WITHDRAWAL' ? w.method : null,
       destination: type === 'WITHDRAWAL' ? w.destination : null,
       user: (row as DepositRequest & { user?: unknown }).user as
-        | FinanceItem['user']
-        | null,
+        FinanceItem['user'] | null,
     };
   }
 

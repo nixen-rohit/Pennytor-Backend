@@ -24,7 +24,7 @@ export class WithdrawalController {
    * OTP email goes out — there is deliberately no passwordless /otp route.
    */
   @Post('verify-password')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ financial: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Verify password and send OTP' })
   verifyPassword(
     @CurrentUser() user: AuthUser,
@@ -37,7 +37,7 @@ export class WithdrawalController {
   }
 
   @Get('mine')
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Current wallet balance and the caller withdrawal requests',
   })
@@ -45,9 +45,15 @@ export class WithdrawalController {
     return this.withdrawalService.myWithdrawals(user.id);
   }
 
-  /** Creates a PENDING withdrawal after OTP + password verification. */
+  @Get('latest')
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @ApiOperation({ summary: 'Get the latest withdrawal status for the caller' })
+  getMyLatest(@CurrentUser() user: AuthUser) {
+    return this.withdrawalService.getMyLatest(user.id);
+  }
+
   @Post()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ financial: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Submit a withdrawal request' })
   createWithdrawal(
     @CurrentUser() user: AuthUser,

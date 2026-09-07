@@ -11,6 +11,7 @@ import { createReadStream, promises as fs } from 'fs';
 import * as path from 'path';
 import { DepositRequest, DepositStatus, Prisma } from '@prisma/client';
 import { DepositRepository } from './deposit.repository';
+import { KycService } from '../kyc/kyc.service';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 import {
   EXTENSION_BY_KIND,
@@ -27,6 +28,9 @@ import {
 
 const SCREENSHOT_KINDS = new Set(['jpeg', 'png', 'webp']);
 
+/** Maximum single deposit amount in INR. */
+const MAX_DEPOSIT_AMOUNT = 500_000;
+
 @Injectable()
 export class DepositService {
   private readonly logger = new Logger(DepositService.name);
@@ -35,6 +39,7 @@ export class DepositService {
 
   constructor(
     private readonly repository: DepositRepository,
+    private readonly kycService: KycService,
     config: ConfigService,
   ) {
     this.storageRoot = path.resolve(
@@ -56,11 +61,33 @@ export class DepositService {
     buffer: Buffer,
     originalName: string,
   ): Promise<{ id: string; status: DepositStatus; amount: string }> {
+    // Spec §9: only KYC-verified users may move money. Throws 403
+    // with a human-readable reason; the front-end routes the user
+    // to /account-kyc on receipt.
+    await this.kycService.assertKycVerified(userId);
+
+    const active = await this.repository.findActiveByUser(userId);
+    if (active) {
+      throw new ConflictException(
+        'You already have an active deposit request. Please wait for it to be processed.',
+      );
+    }
+
     assertUploadSize(buffer.length, this.maxFileBytes);
     const kind = detectFileKind(buffer);
     if (!kind || !SCREENSHOT_KINDS.has(kind)) {
       throw new BadRequestException(
         'Screenshot must be a JPG, PNG or WebP image',
+      );
+    }
+
+    const amountNum = parseFloat(dto.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new BadRequestException('Deposit amount must be greater than 0');
+    }
+    if (amountNum > MAX_DEPOSIT_AMOUNT) {
+      throw new BadRequestException(
+        `Deposit amount must not exceed ₹${MAX_DEPOSIT_AMOUNT.toLocaleString('en-IN')}`,
       );
     }
 
@@ -87,7 +114,11 @@ export class DepositService {
         mimeType: MIME_BY_KIND[kind],
         fileSize: buffer.length,
       });
-      return { id: created.id, status: created.status, amount: created.amount.toString() };
+      return {
+        id: created.id,
+        status: created.status,
+        amount: created.amount.toString(),
+      };
     } catch (error) {
       // DB failed after the file hit the disk — remove the orphan.
       await fs.unlink(absolutePath).catch(() => undefined);
@@ -106,6 +137,27 @@ export class DepositService {
     };
   }
 
+  async getMyLatest(userId: string) {
+    const active = await this.repository.findActiveByUser(userId);
+    if (active) {
+      return {
+        hasActive: true,
+        deposit: this.toUserView(active),
+      };
+    }
+
+    const rows = await this.repository.listMine(userId);
+    if (rows.length === 0) {
+      return { hasActive: false, deposit: null };
+    }
+
+    const latest = rows[0];
+    return {
+      hasActive: false,
+      deposit: this.toUserView(latest),
+    };
+  }
+
   async getDeposit(userId: string, id: string) {
     const row = await this.repository.findById(id);
     if (!row || row.userId !== userId) {
@@ -117,8 +169,7 @@ export class DepositService {
       amount: row.amount.toString(),
       createdAt: row.createdAt,
       transactionId: row.transactionId,
-      reviewNote:
-        row.status === DepositStatus.REJECTED ? row.reviewNote : null,
+      reviewNote: row.status === DepositStatus.REJECTED ? row.reviewNote : null,
     };
   }
 
@@ -129,8 +180,7 @@ export class DepositService {
       amount: row.amount.toString(),
       transactionId: row.transactionId,
       status: row.status,
-      reviewNote:
-        row.status === DepositStatus.REJECTED ? row.reviewNote : null,
+      reviewNote: row.status === DepositStatus.REJECTED ? row.reviewNote : null,
       submittedAt: row.submittedAt,
       createdAt: row.createdAt,
     };
@@ -204,57 +254,12 @@ export class DepositService {
   }
 
   /** Admin view/download — streams with correct headers, never the path. */
-  async streamFile(
-    id: string,
-  ): Promise<{ row: DepositRequest; stream: ReturnType<typeof createReadStream> }> {
+  async streamFile(id: string): Promise<{
+    row: DepositRequest;
+    stream: ReturnType<typeof createReadStream>;
+  }> {
     const { row, absolutePath } = await this.resolveFile(id);
     return { row, stream: createReadStream(absolutePath) };
-  }
-
-  /** Admin decision: UNDER_REVIEW / VERIFIED / REJECTED. */
-  async updateStatus(
-    id: string,
-    adminId: string,
-    status: DepositStatus,
-    note?: string,
-  ) {
-    const row = await this.repository.findByIdPlain(id);
-    if (!row) throw new NotFoundException('Deposit request not found');
-
-    if (status === DepositStatus.REJECTED && !note?.trim()) {
-      throw new BadRequestException(
-        'A rejection reason is required for this decision',
-      );
-    }
-
-    // The note belongs to a rejection only — approving or reopening clears
-    // any previous rejection note.
-    const effectiveNote =
-      status === DepositStatus.REJECTED ? note : null;
-
-    // Approving credits the wallet exactly once: if the request was already
-    // VERIFIED the transition did not happen, so no double credit.
-    let updated: DepositRequest;
-    if (
-      status === DepositStatus.VERIFIED &&
-      row.status !== DepositStatus.VERIFIED
-    ) {
-      updated = await this.repository.approveAndCredit(
-        id,
-        row.userId,
-        adminId,
-        row.amount,
-      );
-    } else {
-      updated = await this.repository.setStatus(
-        id,
-        status,
-        adminId,
-        effectiveNote,
-      );
-    }
-
-    return { id: updated.id, status: updated.status };
   }
 
   /**

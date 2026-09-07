@@ -16,6 +16,8 @@ import {
 import { OtpService } from '../otp/otp.service';
 import { OtpPurpose } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 import { verifyPassword } from '../../common/utils/password.util';
 import {
   InvestmentFundRepository,
@@ -62,6 +64,8 @@ export class InvestmentFundService {
     private readonly repository: InvestmentFundRepository,
     private readonly otpService: OtpService,
     private readonly mailService: MailService,
+    private readonly referralService: ReferralService,
+    private readonly kycService: KycService,
   ) {}
 
   async getSchemes() {
@@ -209,6 +213,9 @@ export class InvestmentFundService {
   }
 
   async createApplication(userId: string, dto: CreateInvestmentApplicationDto) {
+    // Spec §9: KYC must be verified before any investment.
+    await this.kycService.assertKycVerified(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user) throw new NotFoundException('User account not found');
 
@@ -505,6 +512,11 @@ export class InvestmentFundService {
       );
     }
 
+    // Spec §10: on first verified investment, generate the referral
+    // code (idempotent) and activate eligibility. The service is a
+    // no-op when the user already has a code, so re-approvals are safe.
+    await this.referralService.onInvestmentVerified(application.userId);
+
     // Pass the POST-approval row — it carries the verifiedAt that was null
     // on the pre-approval snapshot.
     await this.sendApprovalEmail(application);
@@ -587,6 +599,12 @@ export class InvestmentFundService {
         'Application already processed; only pending applications can be rejected',
       );
     }
+
+    // Spec §11: when an investment becomes ineligible, recompute the
+    // user's overall eligibility. The service decides whether to set the
+    // code INACTIVE (no other qualifying investment) or keep it ACTIVE.
+    await this.referralService.onInvestmentDeactivated(row.userId);
+
     return { id, status: InvestmentStatus.REJECTED };
   }
 

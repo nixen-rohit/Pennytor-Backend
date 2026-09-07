@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SIPForChildService } from './sip-for-child.service';
@@ -80,8 +73,7 @@ export class SIPForChildController {
   @Get('reports')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({
-    summary:
-      'User SIP for Child report — premium payments, refunds',
+    summary: 'User SIP for Child report — premium payments, refunds',
   })
   myReports(@CurrentUser() user: AuthUser) {
     return this.sipForChildService.myReports(user.id);

@@ -5,7 +5,10 @@ import { FixedDepositService } from './fixed-deposit.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
-import { VerifyFDPasswordDto, CreateFDApplicationDto } from './dto/fixed-deposit.dto';
+import {
+  VerifyFDPasswordDto,
+  CreateFDApplicationDto,
+} from './dto/fixed-deposit.dto';
 
 @ApiTags('fixed-deposit')
 @Controller('fixed-deposit')
@@ -28,7 +31,11 @@ export class FixedDepositController {
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyFDPasswordDto,
   ) {
-    return this.fdService.verifyPasswordAndSendOtp(user.id, dto.password, dto.planId);
+    return this.fdService.verifyPasswordAndSendOtp(
+      user.id,
+      dto.password,
+      dto.planId,
+    );
   }
 
   @Post('apply')
@@ -38,7 +45,12 @@ export class FixedDepositController {
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateFDApplicationDto,
   ) {
-    return this.fdService.createApplication(user.id, dto.planId, dto.password, dto.otp);
+    return this.fdService.createApplication(
+      user.id,
+      dto.planId,
+      dto.password,
+      dto.otp,
+    );
   }
 
   @Get('mine')

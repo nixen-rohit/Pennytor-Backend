@@ -1,11 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { SIPForChildService } from './sip-for-child.service';
 import { SIPForChildRepository } from './sip-for-child.repository';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 
 jest.mock('../../common/utils/password.util', () => ({
   verifyPassword: jest.fn(),
@@ -18,8 +25,11 @@ describe('SIPForChildService', () => {
   let repo: Record<string, any>;
   let otpService: Record<string, any>;
   let mailService: Record<string, any>;
+  let kycService: Record<string, any>;
 
-  const mockVerifyPassword = verifyPassword as jest.MockedFunction<typeof verifyPassword>;
+  const mockVerifyPassword = verifyPassword as jest.MockedFunction<
+    typeof verifyPassword
+  >;
 
   beforeEach(async () => {
     repo = {
@@ -51,6 +61,11 @@ describe('SIPForChildService', () => {
       sendWithdrawalOtpEmail: jest.fn(),
     };
 
+    kycService = {
+      assertKycVerified: jest.fn().mockResolvedValue(undefined),
+      getKycStatus: jest.fn().mockResolvedValue('VERIFIED'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SIPForChildService,
@@ -59,6 +74,14 @@ describe('SIPForChildService', () => {
         { provide: MailService, useValue: mailService },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PrismaService, useValue: {} },
+        {
+          provide: ReferralService,
+          useValue: {
+            onInvestmentVerified: jest.fn().mockResolvedValue(undefined),
+            onInvestmentDeactivated: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: KycService, useValue: kycService },
       ],
     }).compile();
 
@@ -105,7 +128,11 @@ describe('SIPForChildService', () => {
       });
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
 
-      const result = await service.verifyPasswordAndSendOtp(userId, password, 'PLAN_5000');
+      const result = await service.verifyPasswordAndSendOtp(
+        userId,
+        password,
+        'PLAN_5000',
+      );
       expect(result).toEqual({ success: true });
       expect(otpService.generate).toHaveBeenCalled();
       expect(mailService.sendSipForChildOtpEmail).toHaveBeenCalled();
@@ -165,7 +192,9 @@ describe('SIPForChildService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       for (let i = 0; i < 5; i++) {
-        try { await service.verifyPasswordAndSendOtp(userId, password, 'PLAN_5000'); } catch {}
+        try {
+          await service.verifyPasswordAndSendOtp(userId, password, 'PLAN_5000');
+        } catch {}
       }
 
       await expect(
@@ -183,7 +212,9 @@ describe('SIPForChildService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       for (let i = 0; i < 4; i++) {
-        try { await service.verifyPasswordAndSendOtp(userId, password, 'PLAN_5000'); } catch {}
+        try {
+          await service.verifyPasswordAndSendOtp(userId, password, 'PLAN_5000');
+        } catch {}
       }
 
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
@@ -213,7 +244,11 @@ describe('SIPForChildService', () => {
 
   describe('createApplication', () => {
     const userId = 'user-1';
-    const dto = { scheme: 'PLAN_5000' as any, password: 'Test1234', otp: '123456' };
+    const dto = {
+      scheme: 'PLAN_5000' as any,
+      password: 'Test1234',
+      otp: '123456',
+    };
 
     it('should create application without wallet debit', async () => {
       repo.getUserWithPasswordHash.mockResolvedValue({
@@ -296,7 +331,10 @@ describe('SIPForChildService', () => {
       status: 'VERIFIED',
       monthsPaid: 0,
       totalMonths: 120,
-      amount: { toString: () => '5000', mul: (v: any) => ({ toString: () => String(5000 * v) }) },
+      amount: {
+        toString: () => '5000',
+        mul: (v: any) => ({ toString: () => String(5000 * v) }),
+      },
       premiums: [],
       monthsMissed: 0,
     };
@@ -334,7 +372,10 @@ describe('SIPForChildService', () => {
       repo.findById.mockResolvedValue(null);
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -346,7 +387,10 @@ describe('SIPForChildService', () => {
       repo.findById.mockResolvedValue({ ...app, userId: 'other-user' });
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -358,7 +402,10 @@ describe('SIPForChildService', () => {
       repo.findById.mockResolvedValue({ ...app, status: 'PENDING' });
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -367,10 +414,17 @@ describe('SIPForChildService', () => {
         id: userId,
         passwordHash: 'hash',
       });
-      repo.findById.mockResolvedValue({ ...app, monthsPaid: 120, totalMonths: 120 });
+      repo.findById.mockResolvedValue({
+        ...app,
+        monthsPaid: 120,
+        totalMonths: 120,
+      });
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -384,7 +438,10 @@ describe('SIPForChildService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'wrong', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'wrong',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -398,7 +455,10 @@ describe('SIPForChildService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: true } as any);
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -448,7 +508,10 @@ describe('SIPForChildService', () => {
       });
 
       await expect(
-        service.payPremium(userId, 'app-1', { password: 'Test1234', otp: '123456' }),
+        service.payPremium(userId, 'app-1', {
+          password: 'Test1234',
+          otp: '123456',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -520,7 +583,13 @@ describe('SIPForChildService', () => {
         items: [
           {
             id: 'app-1',
-            user: { firstName: 'Test', lastName: 'User', email: 'test@test.com', clientId: 'C001', kycApplication: null },
+            user: {
+              firstName: 'Test',
+              lastName: 'User',
+              email: 'test@test.com',
+              clientId: 'C001',
+              kycApplication: null,
+            },
             scheme: 'PLAN_5000',
             amount: { toString: () => '5000' },
             monthsPaid: 0,
@@ -558,7 +627,13 @@ describe('SIPForChildService', () => {
         nextPaymentDue: null,
         startedAt: null,
         lastPaidAt: null,
-        user: { firstName: 'Test', lastName: 'User', email: 'test@test.com', clientId: 'C001', kycApplication: null },
+        user: {
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@test.com',
+          clientId: 'C001',
+          kycApplication: null,
+        },
         premiums: [],
       });
 
@@ -568,7 +643,9 @@ describe('SIPForChildService', () => {
 
     it('should throw if application not found', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.adminDetail('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.adminDetail('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -590,7 +667,9 @@ describe('SIPForChildService', () => {
 
     it('should throw if application not found', async () => {
       repo.findById.mockResolvedValue(null);
-      await expect(service.approve('nonexistent', 'admin-1')).rejects.toThrow(NotFoundException);
+      await expect(service.approve('nonexistent', 'admin-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ConflictException if already processed', async () => {
@@ -599,9 +678,14 @@ describe('SIPForChildService', () => {
         scheme: 'PLAN_5000',
         user: { email: 'test@test.com', firstName: 'Test' },
       });
-      repo.approveAndStartCycle.mockResolvedValue({ conflicted: true, application: null });
+      repo.approveAndStartCycle.mockResolvedValue({
+        conflicted: true,
+        application: null,
+      });
 
-      await expect(service.approve('app-1', 'admin-1')).rejects.toThrow(ConflictException);
+      await expect(service.approve('app-1', 'admin-1')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -613,14 +697,18 @@ describe('SIPForChildService', () => {
       });
       repo.rejectAndRefund.mockResolvedValue({ conflicted: false });
 
-      const result = await service.reject('app-1', 'admin-1', 'Invalid documents');
+      const result = await service.reject(
+        'app-1',
+        'admin-1',
+        'Invalid documents',
+      );
       expect(result.status).toBe('REJECTED');
     });
 
     it('should throw if reason too short', async () => {
-      await expect(
-        service.reject('app-1', 'admin-1', 'ab'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.reject('app-1', 'admin-1', 'ab')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw if application not found', async () => {
@@ -673,7 +761,12 @@ describe('SIPForChildService', () => {
     it('should skip apps with future nextPaymentDue', async () => {
       const futureDate = new Date('2099-01-01');
       repo.findApplicationsWithDuePremiums.mockResolvedValue([
-        { id: 'app-1', scheme: 'PLAN_5000', nextPaymentDue: futureDate, user: {} },
+        {
+          id: 'app-1',
+          scheme: 'PLAN_5000',
+          nextPaymentDue: futureDate,
+          user: {},
+        },
       ]);
 
       const result = await service.processMissedPayments();
@@ -701,9 +794,18 @@ describe('SIPForChildService', () => {
         monthsPaid: 3,
         totalMonths: 120,
         premiums: [
-          { amount: new (require('@prisma/client').Prisma.Decimal)(5000), status: 'PAID' },
-          { amount: new (require('@prisma/client').Prisma.Decimal)(5000), status: 'PAID' },
-          { amount: new (require('@prisma/client').Prisma.Decimal)(5000), status: 'PAID' },
+          {
+            amount: new (require('@prisma/client').Prisma.Decimal)(5000),
+            status: 'PAID',
+          },
+          {
+            amount: new (require('@prisma/client').Prisma.Decimal)(5000),
+            status: 'PAID',
+          },
+          {
+            amount: new (require('@prisma/client').Prisma.Decimal)(5000),
+            status: 'PAID',
+          },
         ],
         user: { email: 'test@test.com', firstName: 'Test' },
       });
@@ -722,9 +824,18 @@ describe('SIPForChildService', () => {
     it('should skip when markMonthMissed returns skipped', async () => {
       const pastDate = new Date('2026-01-01');
       repo.findApplicationsWithDuePremiums.mockResolvedValue([
-        { id: 'app-1', scheme: 'PLAN_5000', nextPaymentDue: pastDate, user: {} },
+        {
+          id: 'app-1',
+          scheme: 'PLAN_5000',
+          nextPaymentDue: pastDate,
+          user: {},
+        },
       ]);
-      repo.markMonthMissed.mockResolvedValue({ skipped: true, monthsMissed: 0, rejected: false });
+      repo.markMonthMissed.mockResolvedValue({
+        skipped: true,
+        monthsMissed: 0,
+        rejected: false,
+      });
 
       const result = await service.processMissedPayments();
       expect(result.missed).toBe(0);

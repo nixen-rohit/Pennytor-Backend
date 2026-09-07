@@ -41,7 +41,9 @@ describe('FixedDepositRepository', () => {
           fixedDepositPayout: prisma.fixedDepositPayout,
           user: prisma.user,
           ledgerEntry: prisma.ledgerEntry,
-          $queryRaw: jest.fn().mockImplementation(() => Promise.resolve(mockQueryRawResult)),
+          $queryRaw: jest
+            .fn()
+            .mockImplementation(() => Promise.resolve(mockQueryRawResult)),
         };
         return fn(tx);
       }),
@@ -130,7 +132,9 @@ describe('FixedDepositRepository', () => {
     });
 
     it('should throw BadRequestException for invalid plan', async () => {
-      await expect(repo.create('user-1', 'INVALID' as any)).rejects.toThrow(BadRequestException);
+      await expect(repo.create('user-1', 'INVALID' as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -276,10 +280,12 @@ describe('FixedDepositRepository', () => {
     });
 
     it('should return conflicted if not PENDING', async () => {
-      mockQueryRawResult = [{
-        id: 'app-1',
-        status: 'VERIFIED',
-      }];
+      mockQueryRawResult = [
+        {
+          id: 'app-1',
+          status: 'VERIFIED',
+        },
+      ];
 
       const result = await repo.approveAndStartCycle('app-1', 'admin-1');
       expect(result.conflicted).toBe(true);
@@ -301,7 +307,11 @@ describe('FixedDepositRepository', () => {
       });
       prisma.fixedDepositApplication.update.mockResolvedValue({});
 
-      const result = await repo.rejectAndRefund('app-1', 'admin-1', 'Not interested');
+      const result = await repo.rejectAndRefund(
+        'app-1',
+        'admin-1',
+        'Not interested',
+      );
       expect(result.conflicted).toBe(false);
     });
 
@@ -337,15 +347,17 @@ describe('FixedDepositRepository', () => {
   describe('calculateNextPayout (via approve)', () => {
     it('should calculate quarterly next payout correctly', async () => {
       const now = new Date();
-      mockQueryRawResult = [{
-        id: 'app-1',
-        userId: 'user-1',
-        status: 'PENDING',
-        totalEmis: 2,
-        payoutMode: 'quarterly',
-        emiAmount: { toNumber: () => 3130 },
-        depositAmount: { toNumber: () => 25000 },
-      }];
+      mockQueryRawResult = [
+        {
+          id: 'app-1',
+          userId: 'user-1',
+          status: 'PENDING',
+          totalEmis: 2,
+          payoutMode: 'quarterly',
+          emiAmount: { toNumber: () => 3130 },
+          depositAmount: { toNumber: () => 25000 },
+        },
+      ];
       prisma.user.findUnique.mockResolvedValue({ balance: 50000 });
       prisma.fixedDepositApplication.update.mockResolvedValue({});
       prisma.fixedDepositPayout.createMany.mockResolvedValue({ count: 2 });
@@ -362,15 +374,17 @@ describe('FixedDepositRepository', () => {
 
     it('should calculate monthly next payout correctly', async () => {
       const now = new Date();
-      mockQueryRawResult = [{
-        id: 'app-1',
-        userId: 'user-1',
-        status: 'PENDING',
-        totalEmis: 2,
-        payoutMode: 'monthly',
-        emiAmount: { toNumber: () => 5000 },
-        depositAmount: { toNumber: () => 100000 },
-      }];
+      mockQueryRawResult = [
+        {
+          id: 'app-1',
+          userId: 'user-1',
+          status: 'PENDING',
+          totalEmis: 2,
+          payoutMode: 'monthly',
+          emiAmount: { toNumber: () => 5000 },
+          depositAmount: { toNumber: () => 100000 },
+        },
+      ];
       prisma.user.findUnique.mockResolvedValue({ balance: 200000 });
       prisma.fixedDepositApplication.update.mockResolvedValue({});
       prisma.fixedDepositPayout.createMany.mockResolvedValue({ count: 2 });

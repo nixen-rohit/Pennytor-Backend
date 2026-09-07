@@ -1,11 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { FixedDepositService } from './fixed-deposit.service';
 import { FixedDepositRepository } from './fixed-deposit.repository';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ReferralService } from '../referral/referral.service';
+import { KycService } from '../kyc/kyc.service';
 
 jest.mock('../../common/utils/password.util', () => ({
   verifyPassword: jest.fn(),
@@ -18,8 +25,11 @@ describe('FixedDepositService', () => {
   let repo: Record<string, any>;
   let otpService: Record<string, any>;
   let mailService: Record<string, any>;
+  let kycService: Record<string, any>;
 
-  const mockVerifyPassword = verifyPassword as jest.MockedFunction<typeof verifyPassword>;
+  const mockVerifyPassword = verifyPassword as jest.MockedFunction<
+    typeof verifyPassword
+  >;
 
   beforeEach(async () => {
     repo = {
@@ -50,6 +60,11 @@ describe('FixedDepositService', () => {
       sendFDMaturedEmail: jest.fn(),
     };
 
+    kycService = {
+      assertKycVerified: jest.fn().mockResolvedValue(undefined),
+      getKycStatus: jest.fn().mockResolvedValue('VERIFIED'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FixedDepositService,
@@ -57,7 +72,22 @@ describe('FixedDepositService', () => {
         { provide: OtpService, useValue: otpService },
         { provide: MailService, useValue: mailService },
         { provide: AuditService, useValue: { log: jest.fn() } },
-        { provide: PrismaService, useValue: {} },
+        {
+          provide: PrismaService,
+          useValue: {
+            fixedDepositApplication: {
+              findUnique: jest.fn().mockResolvedValue({ userId: 'u-1' }),
+            },
+          },
+        },
+        {
+          provide: ReferralService,
+          useValue: {
+            onInvestmentVerified: jest.fn().mockResolvedValue(undefined),
+            onInvestmentDeactivated: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: KycService, useValue: kycService },
       ],
     }).compile();
 
@@ -83,8 +113,9 @@ describe('FixedDepositService', () => {
     it('should throw ConflictException if user has active application for same plan', async () => {
       repo.findActiveByUser.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.verifyPasswordAndSendOtp(userId, password, planId))
-        .rejects.toThrow(ConflictException);
+      await expect(
+        service.verifyPasswordAndSendOtp(userId, password, planId),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should allow if user has active application for different plan', async () => {
@@ -108,8 +139,9 @@ describe('FixedDepositService', () => {
       repo.findActiveByUser.mockResolvedValue(null);
       repo.getUserWithPasswordHash.mockResolvedValue(null);
 
-      await expect(service.verifyPasswordAndSendOtp(userId, password, planId))
-        .rejects.toThrow(NotFoundException);
+      await expect(
+        service.verifyPasswordAndSendOtp(userId, password, planId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException for wrong password', async () => {
@@ -123,8 +155,9 @@ describe('FixedDepositService', () => {
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
-      await expect(service.verifyPasswordAndSendOtp(userId, password, planId))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.verifyPasswordAndSendOtp(userId, password, planId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should send OTP on success', async () => {
@@ -140,7 +173,11 @@ describe('FixedDepositService', () => {
       otpService.generate.mockResolvedValue('123456');
       repo.getSchemeById.mockReturnValue({ depositAmount: 25000 });
 
-      const result = await service.verifyPasswordAndSendOtp(userId, password, planId);
+      const result = await service.verifyPasswordAndSendOtp(
+        userId,
+        password,
+        planId,
+      );
       expect(result.message).toBe('OTP sent to email');
       expect(mailService.sendFDOTPEmail).toHaveBeenCalledWith(
         'test@test.com',
@@ -166,8 +203,9 @@ describe('FixedDepositService', () => {
         } catch {}
       }
 
-      await expect(service.verifyPasswordAndSendOtp(userId, password, planId))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.verifyPasswordAndSendOtp(userId, password, planId),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -180,16 +218,18 @@ describe('FixedDepositService', () => {
     it('should throw ConflictException if active application exists for same plan', async () => {
       repo.findActiveByUser.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.createApplication(userId, planId, password, otp))
-        .rejects.toThrow(ConflictException);
+      await expect(
+        service.createApplication(userId, planId, password, otp),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should throw NotFoundException if user not found', async () => {
       repo.findActiveByUser.mockResolvedValue(null);
       repo.getUserWithPasswordHash.mockResolvedValue(null);
 
-      await expect(service.createApplication(userId, planId, password, otp))
-        .rejects.toThrow(NotFoundException);
+      await expect(
+        service.createApplication(userId, planId, password, otp),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException for wrong password', async () => {
@@ -203,8 +243,9 @@ describe('FixedDepositService', () => {
       });
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
-      await expect(service.createApplication(userId, planId, password, otp))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.createApplication(userId, planId, password, otp),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should create application and send email on success', async () => {
@@ -220,9 +261,17 @@ describe('FixedDepositService', () => {
       otpService.verify.mockResolvedValue(undefined);
       const mockApp = { id: 'app-1', planId, depositAmount: 50000 };
       repo.create.mockResolvedValue(mockApp);
-      repo.getSchemeById.mockReturnValue({ depositAmount: 50000, lockInMonths: 42 });
+      repo.getSchemeById.mockReturnValue({
+        depositAmount: 50000,
+        lockInMonths: 42,
+      });
 
-      const result = await service.createApplication(userId, planId, password, otp);
+      const result = await service.createApplication(
+        userId,
+        planId,
+        password,
+        otp,
+      );
       expect(result).toEqual(mockApp);
       expect(repo.create).toHaveBeenCalledWith(userId, planId);
       expect(mailService.sendFDAppliedEmail).toHaveBeenCalledWith(
@@ -245,7 +294,11 @@ describe('FixedDepositService', () => {
       repo.list.mockResolvedValue({ items: [], total: 0 });
       const result = await service.myReports('user-1', 1, 20);
       expect(result).toEqual({ items: [], total: 0 });
-      expect(repo.list).toHaveBeenCalledWith({ userId: 'user-1', page: 1, pageSize: 20 });
+      expect(repo.list).toHaveBeenCalledWith({
+        userId: 'user-1',
+        page: 1,
+        pageSize: 20,
+      });
     });
   });
 
@@ -260,7 +313,11 @@ describe('FixedDepositService', () => {
   describe('listApplications (admin)', () => {
     it('should pass status filter to repo.list', async () => {
       repo.list.mockResolvedValue({ items: [], total: 0 });
-      await service.listApplications({ status: 'PENDING', page: 1, pageSize: 10 });
+      await service.listApplications({
+        status: 'PENDING',
+        page: 1,
+        pageSize: 10,
+      });
       expect(repo.list).toHaveBeenCalledWith({
         status: 'PENDING',
         search: undefined,
@@ -283,10 +340,14 @@ describe('FixedDepositService', () => {
 
   describe('approveApplication', () => {
     it('should throw ConflictException if application not pending', async () => {
-      repo.approveAndStartCycle.mockResolvedValue({ conflicted: true, application: null });
+      repo.approveAndStartCycle.mockResolvedValue({
+        conflicted: true,
+        application: null,
+      });
 
-      await expect(service.approveApplication('app-1', 'admin-1'))
-        .rejects.toThrow(ConflictException);
+      await expect(
+        service.approveApplication('app-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should approve and send email', async () => {
@@ -302,7 +363,10 @@ describe('FixedDepositService', () => {
         totalPayout: 50080,
         nextPayoutAt: new Date(),
       };
-      repo.approveAndStartCycle.mockResolvedValue({ conflicted: false, application: mockApp });
+      repo.approveAndStartCycle.mockResolvedValue({
+        conflicted: false,
+        application: mockApp,
+      });
       repo.getUserWithPasswordHash.mockResolvedValue({
         email: 'test@test.com',
         firstName: 'Test',
@@ -321,14 +385,19 @@ describe('FixedDepositService', () => {
     it('should throw ConflictException if application not pending', async () => {
       repo.rejectAndRefund.mockResolvedValue({ conflicted: true });
 
-      await expect(service.rejectApplication('app-1', 'admin-1', 'reason'))
-        .rejects.toThrow(ConflictException);
+      await expect(
+        service.rejectApplication('app-1', 'admin-1', 'reason'),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should reject and return success', async () => {
       repo.rejectAndRefund.mockResolvedValue({ conflicted: false });
 
-      const result = await service.rejectApplication('app-1', 'admin-1', 'Not interested');
+      const result = await service.rejectApplication(
+        'app-1',
+        'admin-1',
+        'Not interested',
+      );
       expect(result.message).toBe('Application rejected');
     });
   });
@@ -427,11 +496,18 @@ describe('FixedDepositService', () => {
       mockVerifyPassword.mockResolvedValue({ valid: false } as any);
 
       for (let i = 0; i < 5; i++) {
-        try { await service.verifyPasswordAndSendOtp('user-1', 'wrong', 'FD_25000' as any); } catch {}
+        try {
+          await service.verifyPasswordAndSendOtp(
+            'user-1',
+            'wrong',
+            'FD_25000' as any,
+          );
+        } catch {}
       }
 
-      await expect(service.verifyPasswordAndSendOtp('user-1', 'wrong', 'FD_25000' as any))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.verifyPasswordAndSendOtp('user-1', 'wrong', 'FD_25000' as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reset on successful verification', async () => {
@@ -450,9 +526,19 @@ describe('FixedDepositService', () => {
       repo.getSchemeById.mockReturnValue({ depositAmount: 25000 });
 
       // First attempt fails
-      try { await service.verifyPasswordAndSendOtp('user-1', 'wrong', 'FD_25000' as any); } catch {}
+      try {
+        await service.verifyPasswordAndSendOtp(
+          'user-1',
+          'wrong',
+          'FD_25000' as any,
+        );
+      } catch {}
       // Second attempt succeeds — should not throw
-      const result = await service.verifyPasswordAndSendOtp('user-1', 'right', 'FD_25000' as any);
+      const result = await service.verifyPasswordAndSendOtp(
+        'user-1',
+        'right',
+        'FD_25000' as any,
+      );
       expect(result.message).toBe('OTP sent to email');
     });
   });

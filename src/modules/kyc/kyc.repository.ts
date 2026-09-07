@@ -87,7 +87,11 @@ export class KycRepository {
       ...(params.search
         ? {
             OR: [
-              { user: { email: { contains: params.search, mode: 'insensitive' } } },
+              {
+                user: {
+                  email: { contains: params.search, mode: 'insensitive' },
+                },
+              },
               {
                 user: {
                   clientId: { contains: params.search, mode: 'insensitive' },

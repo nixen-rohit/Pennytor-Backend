@@ -25,7 +25,9 @@ async function bootstrap() {
   app.use(cookieParser());
   // Normalized (trailing slash removed): the browser's Origin header never
   // carries one, and CORS + CSRF origin checks compare exact strings.
-  const frontendUrl = (config.get<string>('FRONTEND_URL', 'http://localhost:3000') ?? '').replace(/\/+$/, '');
+  const frontendUrl = (
+    config.get<string>('FRONTEND_URL', 'http://localhost:3000') ?? ''
+  ).replace(/\/+$/, '');
   app.enableCors({
     origin: frontendUrl,
     credentials: true,
