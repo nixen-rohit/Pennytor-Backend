@@ -1,19 +1,21 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { DepositService } from './deposit.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../../guards/roles.guard';
@@ -104,5 +106,43 @@ export class DepositAdminController {
     @Body() dto: RejectDepositDto,
   ) {
     return this.depositService.reject(id, admin.id, dto.note);
+  }
+
+  /** Delete deposit screenshot only — keeps the record for audit trail. */
+  @Delete(':id/file')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Delete deposit screenshot (admin, audited)' })
+  async deleteFile(
+    @Param('id') id: string,
+    @CurrentUser() admin: AuthUser,
+    @Req() req: Request,
+  ) {
+    await this.depositService.deleteFile(
+      id,
+      admin.id,
+      req.ip,
+      req.headers['user-agent'] as string | undefined,
+    );
+    return { message: 'Screenshot deleted' };
+  }
+
+  /** Delete entire deposit record (history). */
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Delete deposit record (admin, audited)' })
+  async deleteDeposit(
+    @Param('id') id: string,
+    @CurrentUser() admin: AuthUser,
+    @Req() req: Request,
+  ) {
+    await this.depositService.deleteDeposit(
+      id,
+      admin.id,
+      req.ip,
+      req.headers['user-agent'] as string | undefined,
+    );
+    return { message: 'Deposit record deleted' };
   }
 }

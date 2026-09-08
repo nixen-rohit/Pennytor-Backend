@@ -9,7 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { createReadStream, promises as fs } from 'fs';
 import * as path from 'path';
-import { DepositRequest, DepositStatus, Prisma } from '@prisma/client';
+import {
+  DepositRequest,
+  DepositStatus,
+  Prisma,
+  AuditAction,
+} from '@prisma/client';
 import { DepositRepository } from './deposit.repository';
 import { KycService } from '../kyc/kyc.service';
 import { CreateDepositDto } from './dto/create-deposit.dto';
@@ -25,6 +30,7 @@ import {
   depositRelativePath,
   resolvePrivatePath,
 } from '../../common/utils/storage.util';
+import { AuditService } from '../audit/audit.service';
 
 const SCREENSHOT_KINDS = new Set(['jpeg', 'png', 'webp']);
 
@@ -40,6 +46,7 @@ export class DepositService {
   constructor(
     private readonly repository: DepositRepository,
     private readonly kycService: KycService,
+    private readonly audit: AuditService,
     config: ConfigService,
   ) {
     this.storageRoot = path.resolve(
@@ -297,5 +304,99 @@ export class DepositService {
       );
     }
     return { id, status: DepositStatus.REJECTED };
+  }
+
+  /**
+   * Deletes the deposit screenshot file from disk and clears file metadata
+   * from the database. Keeps the deposit request record for audit trail.
+   */
+  async deleteFile(
+    id: string,
+    adminId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const row = await this.repository.findByIdPlain(id);
+    if (!row) throw new NotFoundException('Deposit request not found');
+
+    assertSafeStorageName(row.storageName);
+    const absolutePath = resolvePrivatePath(this.storageRoot, row.storagePath);
+
+    // Delete physical file
+    try {
+      await fs.unlink(absolutePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+      // ENOENT: file already gone — safe to continue.
+    }
+
+    // Clear file metadata from DB (keep deposit record for audit trail)
+    await this.repository.clearFileMetadata(id);
+
+    // Audit log
+    await this.audit.log({
+      userId: adminId,
+      action: AuditAction.REJECT_DEPOSIT, // Using existing action; metadata indicates file deletion
+      ipAddress,
+      userAgent,
+      metadata: {
+        depositId: id,
+        action: 'DELETE_FILE',
+        originalName: row.originalName,
+        storagePath: row.storagePath,
+      },
+    });
+  }
+
+  /**
+   * Deletes the entire deposit request record (history) from the database.
+   * Also deletes the physical file if it exists.
+   */
+  async deleteDeposit(
+    id: string,
+    adminId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const row = await this.repository.findByIdPlain(id);
+    if (!row) throw new NotFoundException('Deposit request not found');
+
+    // Delete physical file if exists
+    if (row.storageName) {
+      assertSafeStorageName(row.storageName);
+      const absolutePath = resolvePrivatePath(
+        this.storageRoot,
+        row.storagePath,
+      );
+      try {
+        await fs.unlink(absolutePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          this.logger.warn(
+            `Failed to delete deposit file ${absolutePath}: ${error}`,
+          );
+        }
+      }
+    }
+
+    // Delete the deposit request record
+    await this.repository.deleteDeposit(id);
+
+    // Audit log
+    await this.audit.log({
+      userId: adminId,
+      action: AuditAction.REJECT_DEPOSIT, // Using existing action; metadata indicates record deletion
+      ipAddress,
+      userAgent,
+      metadata: {
+        depositId: id,
+        action: 'DELETE_HISTORY',
+        amount: row.amount.toString(),
+        transactionId: row.transactionId,
+        status: row.status,
+      },
+    });
   }
 }

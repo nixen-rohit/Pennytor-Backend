@@ -246,4 +246,23 @@ export class DepositRepository {
       return { conflicted: false };
     });
   }
+
+  async clearFileMetadata(id: string): Promise<void> {
+    await this.prisma.depositRequest.update({
+      where: { id },
+      data: {
+        originalName: '',
+        storageName: '',
+        storagePath: '',
+        mimeType: '',
+        fileSize: 0,
+      },
+    });
+  }
+
+  async deleteDeposit(id: string): Promise<void> {
+    await this.prisma.depositRequest.delete({
+      where: { id },
+    });
+  }
 }
