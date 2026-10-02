@@ -327,22 +327,22 @@ export class KycService {
 
     if (status === KycApplicationStatus.VERIFIED) {
       const user = await this.repository.findUserForApplication(applicationId);
-      if (user?.email) {
+      if (user?.email && user.clientId) {
         await this.mailService.sendKycApprovedEmail({
           to: user.email,
           firstName: user.firstName,
-          clientId: user.clientId ?? app.id,
+          clientId: user.clientId,
         });
       }
     }
 
     if (status === KycApplicationStatus.REJECTED) {
       const user = await this.repository.findUserForApplication(applicationId);
-      if (user?.email) {
+      if (user?.email && user.clientId) {
         await this.mailService.sendKycRejectedEmail({
           to: user.email,
           firstName: user.firstName,
-          clientId: user.clientId ?? app.id,
+          clientId: user.clientId,
           reason: note ?? '',
         });
       }

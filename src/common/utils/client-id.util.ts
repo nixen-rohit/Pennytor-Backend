@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-export const CLIENT_ID_PATTERN = /^[A-Z0-9]{6,9}$/;
+export const CLIENT_ID_PATTERN = /^PNT-[A-Z0-9]{3}-[A-Z0-9]{3}$/;
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -14,9 +14,13 @@ function randomIndex(max: number): number {
 }
 
 export function generateClientId(): string {
-  const length = 6 + randomIndex(4);
-  let id = '';
-  for (let i = 0; i < length; i++) {
+  // Format: PNT-ABC-123 (more readable with prefix and hyphens)
+  let id = 'PNT-';
+  for (let i = 0; i < 3; i++) {
+    id += ALPHABET[randomIndex(ALPHABET.length)];
+  }
+  id += '-';
+  for (let i = 0; i < 3; i++) {
     id += ALPHABET[randomIndex(ALPHABET.length)];
   }
   return id;
