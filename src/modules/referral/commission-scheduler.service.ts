@@ -56,9 +56,13 @@ export class CommissionSchedulerService {
     const istMs =
       date.getTime() + CommissionSchedulerService.IST_OFFSET_MIN * 60_000;
     const ist = new Date(istMs);
-    const month = ist.getUTCMonth() + 1; // 1..12
-    const year = ist.getUTCFullYear();
-    return { month, year };
+    // The cycle is the PREVIOUS calendar month in IST — the most recent
+    // fully-elapsed month. Running on the 2nd of a month therefore
+    // processes the month that just ended, not the one just started.
+    const prev = new Date(
+      Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth() - 1, 1),
+    );
+    return { month: prev.getUTCMonth() + 1, year: prev.getUTCFullYear() };
   }
 
   /**
@@ -152,8 +156,13 @@ export class CommissionSchedulerService {
         ) {
           const referredIds = await this.usersAtDepth(referrerId, level);
           for (const referredId of referredIds) {
-            // Pull every qualifying investment of the referred user.
-            const investments = await this.qualifyingInvestmentsFor(referredId);
+            // Pull every qualifying investment of the referred user for
+            // this cycle.
+            const investments = await this.qualifyingInvestmentsFor(
+              referredId,
+              month,
+              year,
+            );
             for (const inv of investments) {
               const created = await this.commissions.calculateAndRecord({
                 referrerId,
@@ -221,21 +230,46 @@ export class CommissionSchedulerService {
   }
 
   /**
-   * Returns every "qualifying investment" of the user for the current
-   * cycle. Per spec §14 + §15:
+   * [start, end) UTC instants bounding the calendar month `month`/`year`,
+   * interpreted in the business timezone (Asia/Kolkata). Prisma stores
+   * DateTime in UTC, so we convert the IST midnight boundaries to UTC by
+   * subtracting the fixed +5:30 offset.
+   */
+  private cycleRangeIST(
+    month: number,
+    year: number,
+  ): { start: Date; end: Date } {
+    const offsetMs = CommissionSchedulerService.IST_OFFSET_MIN * 60_000;
+    // First-of-month at 00:00 IST → UTC.
+    const startUTC = Date.UTC(year, month - 1, 1, 0, 0, 0) - offsetMs;
+    // First-of-next-month at 00:00 IST → UTC (exclusive end).
+    const endUTC = Date.UTC(year, month, 1, 0, 0, 0) - offsetMs;
+    return { start: new Date(startUTC), end: new Date(endUTC) };
+  }
+
+  /**
+   * Returns every "qualifying investment" of the user for the given cycle.
+   * Per spec §14 + §15:
    *  - Investment Fund: a VERIFIED application is one qualifying event.
    *  - Fixed Deposit: a VERIFIED FD application is one event.
-   *  - SIP: each PAID premium in the cycle month is one event.
+   *  - SIP: each PAID premium whose `paidAt` falls inside the cycle month
+   *    (IST) is one event, computed on the ACTUAL premium amount paid —
+   *    NOT the SIP plan amount. A missed premium therefore produces no
+   *    commission for that period.
    *
-   * The amount returned is the SNAPSHOT — for SIP, the premium amount;
-   * for funds/FD, the application amount.
+   * The returned `id` is stable per event (application id for Fund/FD,
+   * premium id for SIP) and is used as the commission idempotency key, so
+   * each paid premium yields at most one commission per level per cycle.
    */
   private async qualifyingInvestmentsFor(
     userId: string,
+    month: number,
+    year: number,
   ): Promise<
     Array<{ id: string; amount: Prisma.Decimal; kind: 'FUND' | 'FD' | 'SIP' }>
   > {
-    const [funds, fds, sips] = await Promise.all([
+    const { start, end } = this.cycleRangeIST(month, year);
+    const [funds, fds, sipPremiums] = await Promise.all([
       this.prisma.investmentApplication.findMany({
         where: { userId, status: InvestmentStatus.VERIFIED },
         select: { id: true, amount: true },
@@ -244,8 +278,13 @@ export class CommissionSchedulerService {
         where: { userId, status: FixedDepositStatus.VERIFIED },
         select: { id: true, depositAmount: true },
       }),
-      this.prisma.sIPForChildApplication.findMany({
-        where: { userId, status: SIPStatus.VERIFIED },
+      this.prisma.sIPForChildPremium.findMany({
+        where: {
+          userId,
+          status: 'PAID',
+          paidAt: { gte: start, lt: end },
+          application: { status: SIPStatus.VERIFIED },
+        },
         select: { id: true, amount: true },
       }),
     ]);
@@ -259,7 +298,8 @@ export class CommissionSchedulerService {
       out.push({ id: f.id, amount: f.amount, kind: 'FUND' });
     for (const fd of fds)
       out.push({ id: fd.id, amount: fd.depositAmount, kind: 'FD' });
-    for (const s of sips) out.push({ id: s.id, amount: s.amount, kind: 'SIP' });
+    for (const p of sipPremiums)
+      out.push({ id: p.id, amount: p.amount, kind: 'SIP' });
     return out;
   }
 }
