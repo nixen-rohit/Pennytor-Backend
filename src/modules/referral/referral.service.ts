@@ -489,7 +489,42 @@ export class ReferralService {
    * The admin path uses a separate method with a higher cap.
    */
   async getMyTree(userId: string) {
-    return this.referralRepo.getTreeBounded(userId, 5);
+    const tree = await this.referralRepo.getTreeBounded(userId, 5);
+
+    const nodeIds: string[] = [];
+    const walk = (nodes: any[]) => {
+      for (const node of nodes) {
+        nodeIds.push(node.id);
+        walk(node.children ?? []);
+      }
+    };
+    walk(tree);
+
+    if (nodeIds.length === 0) return tree;
+
+    const sums = await this.prisma.referralCommission.groupBy({
+      by: ['referredUserId'],
+      where: {
+        referrerId: userId,
+        referredUserId: { in: nodeIds },
+        status: { in: ['PAID', 'CALCULATED', 'FROZEN'] },
+      },
+      _sum: { commissionAmount: true },
+    });
+
+    const byReferred = new Map(
+      sums.map((s) => [s.referredUserId, (s._sum.commissionAmount ?? new Prisma.Decimal(0)).toString()]),
+    );
+
+    const attach = (nodes: any[]) => {
+      for (const node of nodes) {
+        node.totalCommission = byReferred.get(node.id) ?? '0';
+        attach(node.children ?? []);
+      }
+    };
+    attach(tree);
+
+    return tree;
   }
 
   async getMyCommissionHistory(userId: string, page: number, pageSize: number) {

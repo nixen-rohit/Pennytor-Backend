@@ -52,6 +52,7 @@ enum AuditAction {
   REJECT_WITHDRAWAL
   APPROVE_INVESTMENT_FUND
   REJECT_INVESTMENT_FUND
+  FD_REFUND  // New: for Fixed Deposit refunds
 
   // System ROI credit (actor omitted — cron-driven)
   INVESTMENT_ROI_CREDIT

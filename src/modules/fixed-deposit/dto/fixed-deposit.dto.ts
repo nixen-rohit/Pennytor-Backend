@@ -41,6 +41,13 @@ export class RejectFDApplicationDto {
   note?: string;
 }
 
+export class RefundFDApplicationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class ListFDQueryDto {
   @IsOptional()
   @IsString()

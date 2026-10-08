@@ -23,6 +23,7 @@ import { InvestmentFundModule } from './modules/investment-fund/investment-fund.
 import { SIPForChildModule } from './modules/sip-for-child/sip-for-child.module';
 import { FixedDepositModule } from './modules/fixed-deposit/fixed-deposit.module';
 import { ReferralModule } from './modules/referral/referral.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ReferralModule } from './modules/referral/referral.module';
     SIPForChildModule,
     FixedDepositModule,
     ReferralModule,
+    DashboardModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

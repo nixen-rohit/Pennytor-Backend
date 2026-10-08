@@ -4,7 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { FixedDepositPlanId, OtpPurpose } from '@prisma/client';
+import { FixedDepositPlanId, OtpPurpose, AuditAction } from '@prisma/client';
 import { FixedDepositRepository, FDScheme } from './fixed-deposit.repository';
 import { OtpService } from '../otp/otp.service';
 import { MailService } from '../mail/mail.service';
@@ -239,6 +239,58 @@ export class FixedDepositService {
     }
 
     return { message: 'Application rejected' };
+  }
+
+  /**
+   * Admin-initiated refund for VERIFIED Fixed Deposit applications.
+   * 
+   * Process mirrors the repository's refundVerifiedDeposit:
+   * 1. Validate application is in VERIFIED status
+   * 2. Credit deposit amount back to user's wallet (balance increment)
+   * 3. Create ledger entry for the refund (CREDIT transaction)
+   * 4. Update FD status to REJECTED with review note
+   * 5. Deactivate referral code if user had one (spec §11)
+   * 
+   * @param id - Fixed Deposit Application ID
+   * @param adminId - Admin user ID performing the refund
+   * @param reason - Reason for refund (shown to user in notification)
+   * @returns Object with refund status and new user balance
+   */
+  async refundVerifiedDeposit(id: string, adminId: string, reason: string) {
+    const result = await this.repo.refundVerifiedDeposit(id, adminId, reason);
+
+    if (result.conflicted) {
+      throw new ConflictException(result.reason || 'Cannot process refund');
+    }
+
+    this.audit.log({
+      action: AuditAction.REJECT_DEPOSIT,
+      userId: adminId,
+      metadata: { targetId: id, reason, refundedAmount: result.refundedAmount },
+    });
+
+    // Deactivate referral code if user had one (spec §11)
+    if (result.userId) {
+      await this.referralService.onInvestmentDeactivated(result.userId);
+    }
+
+    // Send notification to user
+    const user = await this.prisma.user.findUnique({
+      where: { id: result.userId },
+    });
+
+    if (user) {
+      await this.mailService.sendFDRejectedRefundEmail({
+        to: user.email,
+        firstName: user.firstName,
+        applicationId: id,
+        reason: reason || 'Admin decision',
+        refundAmount: Number(result.refundedAmount),
+        newBalance: Number(result.newBalance),
+      });
+    }
+
+    return { message: 'Application rejected and refund processed', ...result };
   }
 
   // Scheduler

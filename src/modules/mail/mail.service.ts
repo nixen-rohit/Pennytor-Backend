@@ -521,6 +521,36 @@ export class MailService {
     });
   }
 
+  /**
+   * Sends a Fixed Deposit rejection and refund email to the user.
+   */
+  async sendFDRejectedRefundEmail(params: {
+    to: string;
+    firstName: string;
+    applicationId: string;
+    reason: string;
+    refundAmount: number;
+    newBalance: number;
+  }) {
+    const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Fixed Deposit Application Rejected</h2>
+      <p>Dear ${params.firstName},</p>
+      <p>Your Fixed Deposit application (ID: ${params.applicationId}) has been rejected and a refund has been processed.</p>
+      <p><strong>Refund Amount:</strong> $${params.refundAmount.toLocaleString('en-IN')}</p>
+      <p><strong>New Wallet Balance:</strong> $${params.newBalance.toLocaleString('en-IN')}</p>
+      <p>Reason: ${params.reason || 'Admin decision'}</p>
+      <p>You can apply for a new Fixed Deposit once your KYC is verified.</p>
+      <br/>
+      <p>Best regards,<br/>Pennytor Team</p>
+    </div>`;
+
+    await this.send({
+      to: params.to,
+      subject: 'Fixed Deposit Application Rejected — Refund Processed',
+      html,
+    });
+  }
+
   private async send(params: {
     to: string;
     subject: string;

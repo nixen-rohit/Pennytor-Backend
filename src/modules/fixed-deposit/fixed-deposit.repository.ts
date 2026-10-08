@@ -186,7 +186,7 @@ export class FixedDepositRepository {
     const result = await this.prisma.$transaction(async (tx) => {
       // Lock the row to prevent double-approve race condition
       const app = await tx.$queryRaw<any[]>`
-        SELECT * FROM "FixedDepositApplication" WHERE id = ${id} FOR UPDATE
+        SELECT * FROM "fixed_deposit_applications" WHERE id = ${id} FOR UPDATE
       `;
       const appRow = app[0];
       if (!appRow || appRow.status !== 'PENDING') {
@@ -278,6 +278,75 @@ export class FixedDepositRepository {
       });
 
       return { conflicted: false };
+    });
+  }
+
+  /**
+   * Admin-initiated refund for VERIFIED Fixed Deposit applications.
+   * 
+   * Process:
+   * 1. Validate application is in VERIFIED status
+   * 2. Credit deposit amount back to user's wallet (balance increment)
+   * 3. Create ledger entry for the refund (CREDIT transaction)
+   * 4. Update FD status to REJECTED with review note
+   * 5. Deactivate referral code if user had one (spec §11)
+   * 
+   * @param id - Fixed Deposit Application ID
+   * @param adminId - Admin user ID performing the refund
+   * @param reason - Reason for refund (shown to user in notification)
+   * @returns Object with refund status and new user balance
+   */
+  async refundVerifiedDeposit(id: string, adminId: string, reason: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Look up the application with user info
+      const app = await tx.fixedDepositApplication.findUnique({
+        where: { id },
+        include: { user: { select: { id: true, balance: true } } },
+      });
+
+      if (!app || app.status !== 'VERIFIED') {
+        return { conflicted: true, reason: 'Application is not in VERIFIED status' };
+      }
+
+      // 2. Credit the deposit amount BACK to user's wallet
+      const updatedUser = await tx.user.update({
+        where: { id: app.userId },
+        data: { balance: { increment: app.depositAmount } },
+        select: { balance: true },
+      });
+
+      // 3. Create ledger entry for the refund (CREDIT transaction)
+      await tx.ledgerEntry.create({
+        data: {
+          userId: app.userId,
+          direction: 'CREDIT' as const,
+          amount: app.depositAmount,
+          balanceAfter: updatedUser.balance,
+          sourceType: 'FD_WITHDRAWAL' as any,
+          sourceId: id,
+        },
+      });
+
+      // 4. Update FD status to REJECTED
+      await tx.fixedDepositApplication.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          reviewedBy: adminId,
+          reviewedAt: new Date(),
+          reviewNote: reason,
+        },
+      });
+
+      // 5. Referral code deactivation handled by service layer
+      // (onInvestmentDeactivated called from service after transaction)
+
+      return {
+        conflicted: false,
+        refundedAmount: app.depositAmount,
+        userId: app.userId,
+        newBalance: updatedUser.balance,
+      };
     });
   }
 

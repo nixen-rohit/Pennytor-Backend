@@ -161,6 +161,7 @@ export class ReferralRepository {
         createdAt: r.createdAt,
         depth: 1,
         children: [],
+        totalCommission: '0',
       };
       byId.set(r.id, node);
     }
@@ -190,6 +191,7 @@ export class ReferralRepository {
           createdAt: r.createdAt,
           depth,
           children: [],
+        totalCommission: '0',
         };
         byId.set(r.id, node);
         const parentId = r.referredById!;
@@ -216,9 +218,10 @@ export interface ReferralTreeNode {
   lastName: string;
   email: string;
   referralCode: string | null;
-  referralCodeStatus: ReferralCodeStatus | null;
+  referralCodeStatus: string | null;
   userType: string;
   createdAt: Date;
   depth: number;
   children: ReferralTreeNode[];
+  totalCommission: string;
 }
