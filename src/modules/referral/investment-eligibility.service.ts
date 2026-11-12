@@ -14,12 +14,12 @@ import {
  *   - Referral code validation at registration
  *   - Commission eligibility checks
  *
- * "Qualifying" is defined as: a VERIFIED investment (or its first-class
- * equivalent for FD / SIP) that has not been later cancelled, completed
- * or rejected. ROI payouts from Investment Fund and EMI payouts from FD
- * both count as ongoing; we look at the application status, not the
- * payout stream, because eligibility is binary (you have / do not have an
- * active investment), not "how much has it paid out so far".
+ * "Qualifying" is defined as: an investment that was approved (VERIFIED)
+ * and has not been rejected or cancelled. A COMPLETED scheme still counts —
+ * maturity is a successful outcome, not a disqualification. Otherwise a
+ * customer whose FD matured would silently stop being a referrer, and their
+ * upline's level unlocks would drop. SIP has no COMPLETED state, so its
+ * check stays VERIFIED-only.
  *
  * Spec §13: if the referrer's qualifying investment stops, all NEW
  * commission earning stops — this service is what the scheduler checks
@@ -48,7 +48,9 @@ export class InvestmentEligibilityService {
       this.prisma.investmentApplication.count({
         where: {
           userId,
-          status: InvestmentStatus.VERIFIED,
+          status: {
+            in: [InvestmentStatus.VERIFIED, InvestmentStatus.COMPLETED],
+          },
         },
       }),
       this.prisma.sIPForChildApplication.count({
@@ -61,7 +63,7 @@ export class InvestmentEligibilityService {
         where: {
           userId,
           status: {
-            in: [FixedDepositStatus.VERIFIED],
+            in: [FixedDepositStatus.VERIFIED, FixedDepositStatus.COMPLETED],
           },
         },
       }),
@@ -76,8 +78,8 @@ export class InvestmentEligibilityService {
    * (spec §12). Indirect referrals do NOT count.
    *
    * "Verified" here means: the referred user themselves has at least one
-   * qualifying active investment, i.e. they have actually participated
-   * in the platform (not merely registered).
+   * qualifying investment (VERIFIED or COMPLETED), i.e. they have actually
+   * participated in the platform (not merely registered).
    */
   async countVerifiedDirectReferrals(userId: string): Promise<number> {
     const relationships = await this.prisma.referralRelationship.findMany({

@@ -93,6 +93,7 @@ enum KycFileAuditAction {
   VIEW
   DOWNLOAD
   DELETE
+  REPLACE
 }
 
 enum Gender {
@@ -337,7 +338,7 @@ model KycApplication {
   nomineeDob              DateTime
   nomineePhone            String?
   nomineeAadhaarEncrypted String?
-  nomineeAadhaarLast4     String
+  nomineeAadhaarLast4     String?
 
   submittedAt DateTime?
   reviewedBy  String?
@@ -390,6 +391,11 @@ model KycFileAuditLog {
   action    KycFileAuditAction
   ipAddress String?
   userAgent String?
+
+  // Snapshot of what was replaced (REPLACE action): old metadata, content
+  // hashes and the admin's reason. Keeps the evidence trail after the old
+  // physical file is deleted.
+  metadata Json?
 
   createdAt DateTime @default(now())
 
@@ -515,6 +521,9 @@ model InvestmentApplication {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Denormalised applicant email for fast lookup / manual ops queries.
+  email String?
+
   scheme      InvestmentScheme
   amount      Decimal          @db.Decimal(12, 2)
   method      String
@@ -535,6 +544,7 @@ model InvestmentApplication {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([email])
   @@index([status])
   @@index([createdAt])
   @@index([submittedAt])
@@ -546,6 +556,9 @@ model SIPForChildApplication {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Denormalised applicant email for fast lookup / manual ops queries.
+  email String?
 
   scheme      SIPPlanId
   amount      Decimal   @db.Decimal(12, 2)
@@ -573,6 +586,7 @@ model SIPForChildApplication {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([email])
   @@index([status])
   @@index([createdAt])
   @@index([submittedAt])
@@ -644,6 +658,10 @@ model FixedDepositApplication {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Denormalised applicant email for fast lookup / manual ops queries.
+  // Emails are immutable in this app, so it never goes stale.
+  email String?
+
   planId        FixedDepositPlanId
   depositAmount Decimal            @db.Decimal(12, 2)
   lockInMonths  Int
@@ -669,6 +687,7 @@ model FixedDepositApplication {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([email])
   @@index([status])
   @@index([status, nextPayoutAt])
   @@index([createdAt])
@@ -711,6 +730,7 @@ enum LedgerSourceType {
   SIP_FOR_CHILD_REFUND
   FD_DEPOSIT
   FD_PAYOUT
+  FD_REFUND
   // Spec §7: ledger entries for referral commission + reversals.
   REFERRAL_COMMISSION
   REFERRAL_COMMISSION_REVERSAL

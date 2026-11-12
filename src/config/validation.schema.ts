@@ -25,7 +25,11 @@ export const validationSchema = Joi.object({
   OTP_MAX_ATTEMPTS: Joi.number().default(5),
   OTP_LENGTH: Joi.number().default(6),
 
-  BREVO_API_KEY: Joi.string().required(),
+  SMTP_HOST: Joi.string().default('smtp.hostinger.com'),
+  SMTP_PORT: Joi.number().default(465),
+  SMTP_SECURE: Joi.string().valid('true', 'false').default('true'),
+  SMTP_USER: Joi.string().required(),
+  SMTP_PASS: Joi.string().required(),
   MAIL_FROM: Joi.string().email().required(),
   MAIL_FROM_NAME: Joi.string().default('Pennytor'),
 

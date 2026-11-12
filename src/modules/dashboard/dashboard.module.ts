@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DashboardController } from './dashboard.controller';
+import { AdminDashboardController } from './admin-dashboard.controller';
 import { DashboardService } from './dashboard.service';
 import { DepositsModule } from '../deposits/deposits.module';
 import { WithdrawalsModule } from '../withdrawals/withdrawals.module';
@@ -17,7 +18,7 @@ import { ReferralModule } from '../referral/referral.module';
     FixedDepositModule,
     ReferralModule,
   ],
-  controllers: [DashboardController],
+  controllers: [DashboardController, AdminDashboardController],
   providers: [DashboardService],
 })
 export class DashboardModule {}

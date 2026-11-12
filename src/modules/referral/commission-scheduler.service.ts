@@ -250,16 +250,24 @@ export class CommissionSchedulerService {
   /**
    * Returns every "qualifying investment" of the user for the given cycle.
    * Per spec §14 + §15:
-   *  - Investment Fund: a VERIFIED application is one qualifying event.
-   *  - Fixed Deposit: a VERIFIED FD application is one event.
+   *  - Investment Fund: a VERIFIED application is ONE qualifying event, and
+   *    commission is paid once on the investment amount.
+   *  - Fixed Deposit: a VERIFIED FD application is ONE event, also paid once
+   *    on the deposit amount.
    *  - SIP: each PAID premium whose `paidAt` falls inside the cycle month
    *    (IST) is one event, computed on the ACTUAL premium amount paid —
    *    NOT the SIP plan amount. A missed premium therefore produces no
    *    commission for that period.
    *
+   * Fund/FD are scoped by `verifiedAt` to the cycle in which the application
+   * was approved, so a one-time deposit earns exactly one commission and is
+   * NOT re-paid every month for the life of the lock-in. `COMPLETED` is
+   * accepted so that reprocessing the booking month after the tenure ends
+   * still finds the original event; rejected/cancelled rows are excluded.
+   *
    * The returned `id` is stable per event (application id for Fund/FD,
    * premium id for SIP) and is used as the commission idempotency key, so
-   * each paid premium yields at most one commission per level per cycle.
+   * each event yields at most one commission per level per cycle.
    */
   private async qualifyingInvestmentsFor(
     userId: string,
@@ -271,11 +279,23 @@ export class CommissionSchedulerService {
     const { start, end } = this.cycleRangeIST(month, year);
     const [funds, fds, sipPremiums] = await Promise.all([
       this.prisma.investmentApplication.findMany({
-        where: { userId, status: InvestmentStatus.VERIFIED },
+        where: {
+          userId,
+          status: {
+            in: [InvestmentStatus.VERIFIED, InvestmentStatus.COMPLETED],
+          },
+          verifiedAt: { gte: start, lt: end },
+        },
         select: { id: true, amount: true },
       }),
       this.prisma.fixedDepositApplication.findMany({
-        where: { userId, status: FixedDepositStatus.VERIFIED },
+        where: {
+          userId,
+          status: {
+            in: [FixedDepositStatus.VERIFIED, FixedDepositStatus.COMPLETED],
+          },
+          verifiedAt: { gte: start, lt: end },
+        },
         select: { id: true, depositAmount: true },
       }),
       this.prisma.sIPForChildPremium.findMany({

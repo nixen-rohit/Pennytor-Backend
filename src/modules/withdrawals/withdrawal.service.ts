@@ -14,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { verifyPassword } from '../../common/utils/password.util';
 import { WithdrawalRepository } from './withdrawal.repository';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
+import { KycService } from '../kyc/kyc.service';
 
 /** Max wrong-password verifications per user per calendar day. */
 const MAX_DAILY_FAILED_VERIFICATIONS = 5;
@@ -34,12 +35,17 @@ export class WithdrawalService {
     private readonly repository: WithdrawalRepository,
     private readonly otpService: OtpService,
     private readonly mailService: MailService,
+    private readonly kycService: KycService,
   ) {}
 
   // ---------------------------------------------------------------- user
 
   /** Sends the withdrawal OTP to the user's registered email. */
   async sendOtp(userId: string) {
+    // Money may only leave a KYC-verified account. Checking here gives the
+    // user immediate feedback instead of failing after the OTP step.
+    await this.kycService.assertKycVerified(userId);
+
     const user = await this.repository.getUserWithPasswordHash(userId);
     if (!user?.email) throw new NotFoundException('User account not found');
 
@@ -146,6 +152,10 @@ export class WithdrawalService {
    * The balance is debited IMMEDIATELY — refunded on admin rejection.
    */
   async createWithdrawal(userId: string, dto: CreateWithdrawalDto) {
+    // Spec §9: only KYC-verified users may move money. This is the
+    // authoritative check — it runs immediately before the balance debit.
+    await this.kycService.assertKycVerified(userId);
+
     const active = await this.repository.findActiveByUser(userId);
     if (active) {
       throw new ConflictException(

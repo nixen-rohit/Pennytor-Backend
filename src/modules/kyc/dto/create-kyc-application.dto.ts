@@ -113,9 +113,15 @@ export class CreateKycApplicationDto {
   @Matches(PHONE_PATTERN, { message: 'Enter a valid nominee phone number' })
   nomineePhone: string;
 
+  // Optional: a nominee's Aadhaar is not mandatory. When blank/omitted the
+  // value is stored as NULL; when present it must still be a valid number.
+  @ValidateIf(
+    (o: CreateKycApplicationDto) =>
+      o.nomineeAadhaar != null && o.nomineeAadhaar.trim() !== '',
+  )
   @IsString()
   @Matches(AADHAAR_PATTERN, {
     message: 'Enter a valid 12-digit nominee Aadhaar number',
   })
-  nomineeAadhaar: string;
+  nomineeAadhaar?: string;
 }

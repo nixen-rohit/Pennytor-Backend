@@ -1,15 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as handlebars from 'handlebars';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-
-const BREVO_SEND_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly apiKey: string;
+  private readonly transporter: Transporter;
   private readonly fromAddress: string;
   private readonly fromName: string;
   private readonly templateCache = new Map<
@@ -18,9 +18,34 @@ export class MailService {
   >();
 
   constructor(private readonly config: ConfigService) {
-    this.apiKey = this.config.get<string>('BREVO_API_KEY')!;
     this.fromAddress = this.config.get<string>('MAIL_FROM')!;
     this.fromName = this.config.get<string>('MAIL_FROM_NAME', 'Pennytor');
+
+    const host = this.config.get<string>('SMTP_HOST', 'smtp.hostinger.com');
+    const port = this.config.get<number>('SMTP_PORT', 465);
+    const secure = this.config.get<string>('SMTP_SECURE', 'true') === 'true';
+    const user = this.config.get<string>('SMTP_USER');
+    const pass = this.config.get<string>('SMTP_PASS');
+
+    this.transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+    });
+
+    if (
+      !user ||
+      !pass ||
+      pass === 'CHANGE_ME_HOSTINGER_PASSWORD' ||
+      pass === 'CHANGE_ME'
+    ) {
+      this.logger.warn(
+        `SMTP credentials are missing (SMTP_USER / SMTP_PASS) — outgoing email to ${host}:${port} will fail.`,
+      );
+    } else {
+      this.logger.log(`SMTP mailer ready (${host}:${port}, secure=${secure})`);
+    }
   }
 
   async sendVerificationEmail(params: {
@@ -73,7 +98,7 @@ export class MailService {
     const html = this.renderTemplate('account-approved', {
       firstName: params.firstName,
       clientId: params.clientId,
-      kycLink: `${this.config.get<string>('FRONTEND_URL')}/kyc`,
+      kycLink: `${this.config.get<string>('FRONTEND_URL')}/account-kyc`,
       year: new Date().getFullYear(),
     });
     await this.send({
@@ -197,7 +222,7 @@ export class MailService {
       amount: params.amount,
       walletBalance: params.walletBalance,
       depositDate: params.depositDate,
-      investLink: `${this.config.get<string>('FRONTEND_URL')}/plans`,
+      investLink: `${this.config.get<string>('FRONTEND_URL')}/investment/all-schemes/fixed-deposite`,
       year: new Date().getFullYear(),
     });
     await this.send({
@@ -557,25 +582,12 @@ export class MailService {
     html: string;
   }): Promise<void> {
     try {
-      const response = await fetch(BREVO_SEND_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'api-key': this.apiKey,
-        },
-        body: JSON.stringify({
-          sender: { email: this.fromAddress, name: this.fromName },
-          to: [{ email: params.to }],
-          subject: params.subject,
-          htmlContent: params.html,
-        }),
+      await this.transporter.sendMail({
+        from: { address: this.fromAddress, name: this.fromName },
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
       });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Brevo API responded with ${response.status}: ${body}`);
-      }
     } catch (error) {
       // Email failure should not silently vanish — but registration flow decides
       // whether to fail the request or let the user request a resend.

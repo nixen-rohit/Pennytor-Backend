@@ -53,12 +53,14 @@ export class InvestmentFundRepository {
       method: string;
       destination: string;
       submittedAt: Date;
+      email?: string;
     },
   ): Promise<InvestmentApplication> {
     return this.prisma.investmentApplication.create({
       data: {
         userId,
         ...data,
+        email: data.email ?? null,
         status: InvestmentStatus.PENDING,
       },
     });
@@ -99,7 +101,7 @@ export class InvestmentFundRepository {
       // 2. Re-check wallet balance inside transaction (prevents TOCTOU)
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { balance: true },
+        select: { balance: true, email: true },
       });
       if (!user || user.balance.lessThan(data.amount)) {
         throw new Error('INSUFFICIENT_BALANCE');
@@ -109,6 +111,7 @@ export class InvestmentFundRepository {
       const created = await tx.investmentApplication.create({
         data: {
           userId,
+          email: user.email,
           scheme: data.scheme,
           amount: data.amount,
           method: 'investment-fund',
@@ -253,6 +256,9 @@ export class InvestmentFundRepository {
       ...(params.search
         ? {
             OR: [
+              {
+                email: { contains: params.search, mode: 'insensitive' },
+              },
               {
                 user: {
                   email: { contains: params.search, mode: 'insensitive' },

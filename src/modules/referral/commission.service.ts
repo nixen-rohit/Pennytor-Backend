@@ -177,6 +177,7 @@ export class CommissionService {
         select: {
           id: true,
           referrerId: true,
+          referredUserId: true,
           commissionAmount: true,
           status: true,
           reversalOfId: true,
@@ -192,11 +193,14 @@ export class CommissionService {
         return { reversalId: existing?.id ?? null };
       }
 
-      // Create the reversal row.
+      // Create the reversal row. It must carry a REAL referredUserId: the
+      // column has a foreign key to `users`, and a placeholder UUID fails
+      // the constraint. Reports that group by referred user exclude
+      // REVERSED rows, so linking to the real user cannot double-count.
       const reversal = await tx.referralCommission.create({
         data: {
           referrerId: original.referrerId,
-          referredUserId: '00000000-0000-0000-0000-000000000000', // sentinel — never matched by tree walks
+          referredUserId: original.referredUserId,
           investmentId: original.id,
           level: -1,
           investmentAmountSnapshot: original.commissionAmount,

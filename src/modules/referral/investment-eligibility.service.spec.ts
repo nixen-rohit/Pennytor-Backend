@@ -10,8 +10,8 @@ import {
 
 /**
  * Spec §9: hasQualifyingActiveInvestment is the single source of truth.
- * ADMIN is always ineligible. Otherwise, the function returns true
- * when ANY of the three product types has a VERIFIED record.
+ * ADMIN is always ineligible. Otherwise, the function returns true when
+ * ANY product type has a qualifying (VERIFIED or COMPLETED) record.
  */
 describe('InvestmentEligibilityService.hasQualifyingActiveInvestment', () => {
   let service: InvestmentEligibilityService;
@@ -33,7 +33,10 @@ describe('InvestmentEligibilityService.hasQualifyingActiveInvestment', () => {
       },
       investmentApplication: {
         count: jest.fn().mockImplementation((args: any) => {
-          if (args.where.status === InvestmentStatus.VERIFIED) {
+          if (
+            args.where.status.in?.includes(InvestmentStatus.VERIFIED) ||
+            args.where.status.in?.includes(InvestmentStatus.COMPLETED)
+          ) {
             return Promise.resolve(opts.fundCount ?? 0);
           }
           return Promise.resolve(0);
@@ -95,5 +98,33 @@ describe('InvestmentEligibilityService.hasQualifyingActiveInvestment', () => {
   it('returns true when there is a verified FD', async () => {
     (service as any).prisma = makePrisma({ fdCount: 1 });
     expect(await service.hasQualifyingActiveInvestment('u1')).toBe(true);
+  });
+
+  it('treats a COMPLETED investment fund as qualifying (matured, not inactive)', async () => {
+    const prisma = makePrisma({ fundCount: 1 });
+    (service as any).prisma = prisma;
+    expect(await service.hasQualifyingActiveInvestment('u1')).toBe(true);
+    const call = (prisma.investmentApplication.count as jest.Mock).mock
+      .calls[0][0];
+    expect(call.where.status.in).toEqual(
+      expect.arrayContaining([
+        InvestmentStatus.VERIFIED,
+        InvestmentStatus.COMPLETED,
+      ]),
+    );
+  });
+
+  it('treats a COMPLETED fixed deposit as qualifying (matured, not inactive)', async () => {
+    const prisma = makePrisma({ fdCount: 1 });
+    (service as any).prisma = prisma;
+    expect(await service.hasQualifyingActiveInvestment('u1')).toBe(true);
+    const call = (prisma.fixedDepositApplication.count as jest.Mock).mock
+      .calls[0][0];
+    expect(call.where.status.in).toEqual(
+      expect.arrayContaining([
+        FixedDepositStatus.VERIFIED,
+        FixedDepositStatus.COMPLETED,
+      ]),
+    );
   });
 });

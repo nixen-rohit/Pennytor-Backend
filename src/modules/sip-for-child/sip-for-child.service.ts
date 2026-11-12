@@ -181,6 +181,7 @@ export class SIPForChildService {
       method: 'sip-for-child',
       destination: `Scheme ${dto.scheme}`,
       submittedAt: new Date(),
+      email: user.email,
     });
 
     return {

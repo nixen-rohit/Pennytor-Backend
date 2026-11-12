@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { createReadStream, promises as fs } from 'fs';
 import * as path from 'path';
 import { KycFile, KycFileAuditAction, KycFileType } from '@prisma/client';
@@ -111,9 +111,127 @@ export class KycFileService {
     }
   }
 
+  /**
+   * Admin document replacement (support flow: the customer sends a better
+   * image, the admin swaps it without rejecting the application).
+   *
+   * Safety order — the existing document must never be lost:
+   *   1. validate the new content,
+   *   2. write the NEW physical file,
+   *   3. update the metadata row in place (same id + type),
+   *   4. audit the REPLACE with the old file's snapshot + reason,
+   *   5. only then delete the OLD physical file.
+   * If anything before step 5 fails, the freshly written file is removed and
+   * the old document stays intact.
+   */
+  async replaceFile(params: {
+    applicationId: string;
+    fileId: string;
+    buffer: Buffer;
+    originalName: string;
+    adminId: string;
+    reason: string;
+    ipAddress?: string;
+    userAgent?: string;
+  }): Promise<KycFile> {
+    const { applicationId, fileId, buffer, originalName } = params;
+
+    const reason = params.reason?.trim() ?? '';
+    if (reason.length < 3) {
+      throw new BadRequestException(
+        'A reason of at least 3 characters is required to replace a document',
+      );
+    }
+
+    const current = await this.repository.findFileForApplication(
+      applicationId,
+      fileId,
+    );
+    if (!current) {
+      throw new NotFoundException('File not found');
+    }
+
+    assertUploadSize(buffer.length, this.maxFileBytes);
+    const kind = validateFileContent(buffer, current.type);
+    if (!kind) {
+      throw new BadRequestException(
+        `File content does not match an allowed format for ${current.type}. ` +
+          'Send JPG/PNG/WebP images (PDF allowed for documents).',
+      );
+    }
+
+    const oldAbsolutePath = await this.resolveForAccess(
+      applicationId,
+      fileId,
+    ).then((r) => r.absolutePath);
+    // Snapshot the evidence before it disappears: hash the file that is on
+    // disk right now, not the incoming buffer.
+    let oldSha256: string | null = null;
+    try {
+      const oldBytes = await fs.readFile(oldAbsolutePath);
+      oldSha256 = createHash('sha256').update(oldBytes).digest('hex');
+    } catch (error) {
+      this.logger.warn(
+        `Could not hash the existing file ${current.id} before replacing it`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+
+    const storageName = `${randomUUID()}.${EXTENSION_BY_KIND[kind]}`;
+    assertSafeStorageName(storageName);
+    const relativePath = kycRelativePath(applicationId, storageName);
+    const absolutePath = resolvePrivatePath(this.storageRoot, relativePath);
+
+    await fs.mkdir(applicationDir(this.storageRoot, applicationId), {
+      recursive: true,
+    });
+    await fs.writeFile(absolutePath, buffer, {
+      mode: 0o600,
+      flag: 'wx',
+    });
+
+    try {
+      const updated = await this.repository.updateFile(fileId, {
+        originalName: originalName.slice(0, 255),
+        storageName,
+        storagePath: relativePath,
+        mimeType: MIME_BY_KIND[kind],
+        fileSize: buffer.length,
+      });
+
+      await this.auditAction({
+        fileId,
+        fileType: current.type,
+        storagePath: relativePath,
+        adminId: params.adminId,
+        action: KycFileAuditAction.REPLACE,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+        metadata: {
+          reason,
+          oldStorageName: current.storageName,
+          oldStoragePath: current.storagePath,
+          oldOriginalName: current.originalName,
+          oldMimeType: current.mimeType,
+          oldFileSize: current.fileSize,
+          oldSha256,
+          newMimeType: MIME_BY_KIND[kind],
+          newFileSize: buffer.length,
+          newSha256: createHash('sha256').update(buffer).digest('hex'),
+        },
+      });
+
+      // Only now is it safe to drop the old physical file.
+      await this.removePhysicalFileByPath(oldAbsolutePath);
+      return updated;
+    } catch (error) {
+      await this.removePhysicalFileByPath(absolutePath);
+      throw error;
+    }
+  }
+
   /** Resolves metadata + a verified absolute path for admin streaming. */
-  async resolveForAccess(
-    applicationId: string,
+  async resolveForAccess(    applicationId: string,
     fileId: string,
   ): Promise<{ file: KycFile; absolutePath: string }> {
     const file = await this.repository.findFileForApplication(
@@ -218,6 +336,7 @@ export class KycFileService {
     action: KycFileAuditAction;
     ipAddress?: string;
     userAgent?: string;
+    metadata?: Record<string, unknown>;
   }): Promise<void> {
     try {
       await this.repository.createFileAudit(params);

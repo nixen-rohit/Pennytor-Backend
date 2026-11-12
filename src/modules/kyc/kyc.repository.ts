@@ -209,6 +209,26 @@ export class KycRepository {
     await this.prisma.kycFile.delete({ where: { id: fileId } });
   }
 
+  /**
+   * Admin document replacement: same row, same slot, new bytes. Returns the
+   * updated metadata so the response never leaks storage details.
+   */
+  async updateFile(
+    fileId: string,
+    data: {
+      originalName: string;
+      storageName: string;
+      storagePath: string;
+      mimeType: string;
+      fileSize: number;
+    },
+  ): Promise<KycFile> {
+    return this.prisma.kycFile.update({
+      where: { id: fileId },
+      data,
+    });
+  }
+
   // ---- File audit ----
 
   async createFileAudit(params: {
@@ -219,8 +239,11 @@ export class KycRepository {
     action: KycFileAuditAction;
     ipAddress?: string;
     userAgent?: string;
+    metadata?: Record<string, unknown>;
   }): Promise<void> {
-    await this.prisma.kycFileAuditLog.create({ data: params });
+    await this.prisma.kycFileAuditLog.create({
+      data: { ...params, metadata: params.metadata as Prisma.InputJsonValue | undefined },
+    });
   }
 
   async listFileAudits(fileId: string, limit = 50) {

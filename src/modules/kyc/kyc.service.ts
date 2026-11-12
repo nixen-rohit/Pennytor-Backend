@@ -18,6 +18,7 @@ import {
   GENDER_TO_ENUM,
   MARITAL_STATUS_TO_ENUM,
 } from './kyc.types';
+import { toUtcDateOnly } from './kyc.date';
 
 const REQUIRED_FILE_TYPES: KycFileType[] = [
   KycFileType.SELFIE,
@@ -60,7 +61,7 @@ export class KycService {
     const data = {
       fullName: dto.fullName,
       phone: dto.phone,
-      dob: new Date(dto.dob),
+      dob: toUtcDateOnly(dto.dob),
       gender: dto.gender ? GENDER_TO_ENUM[dto.gender] : null,
       maritalStatus: dto.maritalStatus
         ? MARITAL_STATUS_TO_ENUM[dto.maritalStatus]
@@ -81,10 +82,15 @@ export class KycService {
         : null,
       branchAddress: dto.branchAddress?.trim() || null,
       nomineeName: dto.nomineeName,
-      nomineeDob: new Date(dto.nomineeDob),
+      nomineeDob: toUtcDateOnly(dto.nomineeDob),
       nomineePhone: dto.nomineePhone?.trim() || null,
-      nomineeAadhaarEncrypted: this.encryption.encrypt(dto.nomineeAadhaar),
-      nomineeAadhaarLast4: dto.nomineeAadhaar.slice(-4),
+      // Optional: NULL when the applicant leaves the nominee Aadhaar blank.
+      nomineeAadhaarEncrypted: dto.nomineeAadhaar?.trim()
+        ? this.encryption.encrypt(dto.nomineeAadhaar.trim())
+        : null,
+      nomineeAadhaarLast4: dto.nomineeAadhaar?.trim()
+        ? dto.nomineeAadhaar.trim().slice(-4)
+        : null,
     };
 
     const app = await this.repository.upsert(userId, data);
@@ -113,14 +119,24 @@ export class KycService {
         maritalStatus: app.maritalStatus,
       },
       documents: {
-        // Masked: only the last 4 digits are ever visible to anyone.
-        aadhaarNumber: mask(app.aadhaarNumberLast4),
-        panNumber: mask(app.panNumberLast4),
+        // The OWNER sees their own full identifiers — a draft/rejected
+        // application must be editable without forcing re-entry. Rows
+        // created before the encrypted layer fall back to the last-4 mask.
+        aadhaarNumber:
+          this.decryptOrNull(app.aadhaarNumberEncrypted, app.id) ??
+          mask(app.aadhaarNumberLast4),
+        panNumber:
+          this.decryptOrNull(app.panNumberEncrypted, app.id) ??
+          mask(app.panNumberLast4),
       },
       bank: {
         accountHolderName: app.accountHolderName,
-        accountNumber: mask(app.accountNumberLast4),
-        ifscCode: mask(app.ifscCodeLast4),
+        accountNumber:
+          this.decryptOrNull(app.accountNumberEncrypted, app.id) ??
+          mask(app.accountNumberLast4),
+        ifscCode:
+          this.decryptOrNull(app.ifscCodeEncrypted, app.id) ??
+          mask(app.ifscCodeLast4),
         bankName: app.bankName,
         branchName: app.branchName,
         accountType: app.accountType,
@@ -130,7 +146,11 @@ export class KycService {
         nomineeName: app.nomineeName,
         nomineeDob: app.nomineeDob,
         nomineePhone: app.nomineePhone,
-        nomineeAadhaar: mask(app.nomineeAadhaarLast4),
+        nomineeAadhaar:
+          this.decryptOrNull(app.nomineeAadhaarEncrypted, app.id) ??
+          (app.nomineeAadhaarLast4
+            ? mask(app.nomineeAadhaarLast4)
+            : null),
       },
       // Types only — never leak storage paths, original names or sizes.
       files: files.map((f) => ({ type: f.type })),
@@ -230,17 +250,8 @@ export class KycService {
     const app = await this.repository.findDetail(applicationId);
     if (!app) throw new NotFoundException('Application not found');
 
-    const decryptOrNull = (ciphertext: string | null): string | null => {
-      if (!ciphertext) return null;
-      try {
-        return this.encryption.decrypt(ciphertext);
-      } catch {
-        this.logger.warn(
-          `Failed to decrypt a KYC identifier in application ${applicationId} — ciphertext is invalid or the key changed`,
-        );
-        return null;
-      }
-    };
+    const decryptOrNull = (ciphertext: string | null) =>
+      this.decryptOrNull(ciphertext, applicationId);
 
     return {
       id: app.id,
@@ -283,7 +294,9 @@ export class KycService {
         nomineePhone: app.nomineePhone,
         nomineeAadhaar:
           decryptOrNull(app.nomineeAadhaarEncrypted) ??
-          mask(app.nomineeAadhaarLast4),
+          (app.nomineeAadhaarLast4
+            ? mask(app.nomineeAadhaarLast4)
+            : null),
       },
       files: app.files.map((f) => ({
         id: f.id,
@@ -294,6 +307,26 @@ export class KycService {
         createdAt: f.createdAt,
       })),
     };
+  }
+
+  /**
+   * Decrypts a stored identifier. A value that fails to decrypt (tampered
+   * ciphertext or changed key) returns null and is logged — callers fall
+   * back to the last-4 mask.
+   */
+  private decryptOrNull(
+    ciphertext: string | null,
+    applicationId: string,
+  ): string | null {
+    if (!ciphertext) return null;
+    try {
+      return this.encryption.decrypt(ciphertext);
+    } catch {
+      this.logger.warn(
+        `Failed to decrypt a KYC identifier in application ${applicationId} — ciphertext is invalid or the key changed`,
+      );
+      return null;
+    }
   }
 
   /** Admin decision: UNDER_REVIEW / VERIFIED / REJECTED. */

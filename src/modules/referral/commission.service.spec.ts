@@ -205,3 +205,115 @@ describe('CommissionService.calculateAndRecord', () => {
     expect(out).toBeNull();
   });
 });
+
+describe('CommissionService.reverse', () => {
+  let service: CommissionService;
+  let txMock: any;
+
+  beforeEach(async () => {
+    txMock = {
+      referralCommission: {
+        findUnique: jest.fn(),
+        create: jest.fn().mockResolvedValue({ id: 'rev1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      user: {
+        update: jest
+          .fn()
+          .mockResolvedValue({ balance: new Prisma.Decimal(0) }),
+      },
+      ledgerEntry: { create: jest.fn().mockResolvedValue({}) },
+    };
+
+    const prismaMock = {
+      $transaction: jest.fn(async (cb: any) => cb(txMock)),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CommissionService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: AuditService, useValue: { log: jest.fn() } },
+        {
+          provide: CommissionConfigService,
+          useValue: { get: jest.fn(), getRatePercent: jest.fn() },
+        },
+        {
+          provide: InvestmentEligibilityService,
+          useValue: { countVerifiedDirectReferrals: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    service = moduleRef.get(CommissionService);
+  });
+
+  it('links the reversal to the real referred user (FK-safe)', async () => {
+    txMock.referralCommission.findUnique.mockResolvedValueOnce({
+      id: 'c1',
+      referrerId: 'r1',
+      referredUserId: 'u1',
+      commissionAmount: new Prisma.Decimal(125),
+      status: CommissionStatus.PAID,
+      reversalOfId: null,
+    });
+
+    const out = await service.reverse('c1', 'admin1', 'refund');
+
+    expect(out).toEqual({ reversalId: 'rev1' });
+    const createArg = txMock.referralCommission.create.mock.calls[0][0];
+    expect(createArg.data.referredUserId).toBe('u1');
+    expect(createArg.data.commissionAmount.toString()).toBe('-125');
+    expect(createArg.data.level).toBe(-1);
+    expect(createArg.data.status).toBe(CommissionStatus.REVERSED);
+
+    // Original is marked, never deleted.
+    expect(txMock.referralCommission.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: expect.objectContaining({ status: CommissionStatus.REVERSED }),
+    });
+
+    // Wallet debited and a reversal ledger row written.
+    expect(txMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'r1' },
+        data: { balance: { decrement: expect.any(Prisma.Decimal) } },
+      }),
+    );
+    expect(txMock.ledgerEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'r1',
+          direction: LedgerDirection.DEBIT,
+          sourceType: LedgerSourceType.REFERRAL_COMMISSION_REVERSAL,
+        }),
+      }),
+    );
+  });
+
+  it('is idempotent when the commission is already reversed', async () => {
+    txMock.referralCommission.findUnique
+      .mockResolvedValueOnce({
+        id: 'c1',
+        referrerId: 'r1',
+        referredUserId: 'u1',
+        commissionAmount: new Prisma.Decimal(125),
+        status: CommissionStatus.REVERSED,
+        reversalOfId: null,
+      })
+      .mockResolvedValueOnce({ id: 'rev1' });
+
+    const out = await service.reverse('c1', 'admin1', 'again');
+
+    expect(out).toEqual({ reversalId: 'rev1' });
+    expect(txMock.referralCommission.create).not.toHaveBeenCalled();
+    expect(txMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it('throws when the commission does not exist', async () => {
+    txMock.referralCommission.findUnique.mockResolvedValueOnce(null);
+    await expect(service.reverse('missing', 'admin1', 'x')).rejects.toThrow(
+      'Commission not found',
+    );
+  });
+});

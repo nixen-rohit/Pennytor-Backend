@@ -122,7 +122,7 @@ export class FixedDepositService {
 
     await this.otpService.verify(userId, OtpPurpose.WITHDRAW_SUBMIT, otp);
 
-    const application = await this.repo.create(userId, planId);
+    const application = await this.repo.create(userId, planId, user.email);
 
     const scheme = this.repo.getSchemeById(planId);
     await this.mailService.sendFDAppliedEmail(user.email, {

@@ -23,12 +23,14 @@ export class SIPForChildRepository {
       method: string;
       destination: string;
       submittedAt: Date;
+      email?: string;
     },
   ) {
     return this.prisma.sIPForChildApplication.create({
       data: {
         userId,
         ...data,
+        email: data.email ?? null,
         status: SIPStatus.PENDING,
       },
     });
@@ -75,6 +77,9 @@ export class SIPForChildRepository {
       ...(params.search
         ? {
             OR: [
+              {
+                email: { contains: params.search, mode: 'insensitive' },
+              },
               {
                 user: {
                   email: { contains: params.search, mode: 'insensitive' },

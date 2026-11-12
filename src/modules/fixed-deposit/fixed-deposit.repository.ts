@@ -4,7 +4,12 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma, FixedDepositPlanId, FixedDepositStatus } from '@prisma/client';
+import {
+  Prisma,
+  FixedDepositPlanId,
+  FixedDepositStatus,
+  LedgerSourceType,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -82,13 +87,14 @@ export class FixedDepositRepository {
     });
   }
 
-  async create(userId: string, planId: FixedDepositPlanId) {
+  async create(userId: string, planId: FixedDepositPlanId, email?: string) {
     const scheme = this.getSchemeById(planId);
     if (!scheme) throw new BadRequestException('Invalid plan');
 
     return this.prisma.fixedDepositApplication.create({
       data: {
         userId,
+        email: email ?? null,
         planId,
         depositAmount: new Prisma.Decimal(scheme.depositAmount),
         lockInMonths: scheme.lockInMonths,
@@ -150,6 +156,7 @@ export class FixedDepositRepository {
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [
+        { email: { contains: query.search, mode: 'insensitive' } },
         { user: { email: { contains: query.search, mode: 'insensitive' } } },
         {
           user: { firstName: { contains: query.search, mode: 'insensitive' } },
@@ -207,7 +214,8 @@ export class FixedDepositRepository {
       }
 
       const now = new Date();
-      const nextPayout = this.calculateNextPayout(now, appRow.payoutMode);
+      // EMI 1 is due one interval after approval (the anchor).
+      const nextPayout = this.nextDueDate(now, appRow.payoutMode, 1);
 
       const updated = await tx.fixedDepositApplication.update({
         where: { id },
@@ -322,7 +330,7 @@ export class FixedDepositRepository {
           direction: 'CREDIT' as const,
           amount: app.depositAmount,
           balanceAfter: updatedUser.balance,
-          sourceType: 'FD_WITHDRAWAL' as any,
+          sourceType: LedgerSourceType.FD_REFUND,
           sourceId: id,
         },
       });
@@ -371,7 +379,7 @@ export class FixedDepositRepository {
     return this.prisma.$transaction(async (tx) => {
       // Lock the payout row to prevent double-credit race condition
       const payoutRows = await tx.$queryRaw<any[]>`
-        SELECT * FROM "FixedDepositPayout" 
+        SELECT * FROM "fixed_deposit_payouts" 
         WHERE "applicationId" = ${applicationId} AND "emiNumber" = ${emiNumber} FOR UPDATE
       `;
       const payout = payoutRows[0];
@@ -403,7 +411,7 @@ export class FixedDepositRepository {
           direction: 'CREDIT',
           amount: payout.amount,
           balanceAfter: user.balance,
-          sourceType: 'FD_PAYOUT' as any,
+          sourceType: LedgerSourceType.FD_PAYOUT,
           sourceId: applicationId,
         },
       });
@@ -412,6 +420,10 @@ export class FixedDepositRepository {
       const newEmisPaid = app.emisPaid + 1;
       const isComplete = newEmisPaid >= app.totalEmis;
 
+      // Anchor the schedule to the application, not the clock: EMI n+1 is
+      // always verifiedAt + (n+1) intervals, regardless of when this tick ran.
+      const anchor = app.verifiedAt ?? app.nextPayoutAt ?? new Date();
+
       await tx.fixedDepositApplication.update({
         where: { id: applicationId },
         data: {
@@ -419,7 +431,7 @@ export class FixedDepositRepository {
           lastPayoutAt: new Date(),
           nextPayoutAt: isComplete
             ? null
-            : this.calculateNextPayout(new Date(), app.payoutMode),
+            : this.nextDueDate(anchor, app.payoutMode, newEmisPaid + 1),
           status: isComplete ? 'COMPLETED' : app.status,
         },
       });
@@ -428,14 +440,43 @@ export class FixedDepositRepository {
     });
   }
 
-  private calculateNextPayout(from: Date, payoutMode: string): Date {
-    const d = new Date(from);
-    d.setDate(1);
-    if (payoutMode === 'quarterly') {
-      d.setMonth(d.getMonth() + 3);
-    } else {
-      d.setMonth(d.getMonth() + 1);
-    }
-    return d;
+  /**
+   * Due date of EMI `emiNumber`, derived from the application's anchor date
+   * (`verifiedAt`) rather than from "now". This keeps the schedule on the
+   * same calendar day for the whole term (spec: e.g. every 20th), survives
+   * late scheduler runs, and repairs any previously drifted dates.
+   */
+  private nextDueDate(
+    anchor: Date,
+    payoutMode: string,
+    emiNumber: number,
+  ): Date {
+    const step = payoutMode === 'quarterly' ? 3 : 1;
+    return this.addMonthsClamped(anchor, step * emiNumber);
+  }
+
+  /**
+   * Add calendar months while clamping the day to the target month's length
+   * (31 Jan + 1 month -> 28/29 Feb), avoiding JS's month-overflow behaviour.
+   * These timestamp columns are stored as timezone-less UTC, so UTC methods
+   * are used deliberately.
+   */
+  private addMonthsClamped(from: Date, months: number): Date {
+    const target = new Date(
+      Date.UTC(
+        from.getUTCFullYear(),
+        from.getUTCMonth() + months,
+        1,
+        from.getUTCHours(),
+        from.getUTCMinutes(),
+        from.getUTCSeconds(),
+        from.getUTCMilliseconds(),
+      ),
+    );
+    const lastDay = new Date(
+      Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    target.setUTCDate(Math.min(from.getUTCDate(), lastDay));
+    return target;
   }
 }

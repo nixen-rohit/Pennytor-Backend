@@ -370,6 +370,8 @@ describe('FixedDepositRepository', () => {
       const nextPayout = updateCall.data.nextPayoutAt;
       expect(nextPayout).toBeInstanceOf(Date);
       expect(nextPayout.getMonth()).toBe((now.getMonth() + 3) % 12);
+      // The anchor day must be preserved (not reset to the 1st).
+      expect(nextPayout.getUTCDate()).toBe(now.getUTCDate());
     });
 
     it('should calculate monthly next payout correctly', async () => {
@@ -397,6 +399,202 @@ describe('FixedDepositRepository', () => {
       const nextPayout = updateCall.data.nextPayoutAt;
       expect(nextPayout).toBeInstanceOf(Date);
       expect(nextPayout.getMonth()).toBe((now.getMonth() + 1) % 12);
+      // The anchor day must be preserved (not reset to the 1st).
+      expect(nextPayout.getUTCDate()).toBe(now.getUTCDate());
+    });
+  });
+
+  describe('payout schedule anchor (option B)', () => {
+    it('derives EMI due dates from the anchor day, not the 1st', () => {
+      const anchor = new Date('2026-06-20T04:30:00.000Z');
+      const sixth = (repo as any).nextDueDate(anchor, 'monthly', 6);
+      expect(sixth.toISOString()).toBe('2026-12-20T04:30:00.000Z');
+    });
+
+    it('derives quarterly due dates correctly', () => {
+      const anchor = new Date('2026-06-20T04:30:00.000Z');
+      const fourth = (repo as any).nextDueDate(anchor, 'quarterly', 4);
+      expect(fourth.toISOString()).toBe('2027-06-20T04:30:00.000Z');
+    });
+
+    it('clamps 31 Jan to 28 Feb (non-leap)', () => {
+      const out = (repo as any).addMonthsClamped(
+        new Date('2027-01-31T04:30:00.000Z'),
+        1,
+      );
+      expect(out.toISOString()).toBe('2027-02-28T04:30:00.000Z');
+    });
+
+    it('clamps 31 Jan to 29 Feb (leap year)', () => {
+      const out = (repo as any).addMonthsClamped(
+        new Date('2028-01-31T04:30:00.000Z'),
+        1,
+      );
+      expect(out.toISOString()).toBe('2028-02-29T04:30:00.000Z');
+    });
+
+    it('returns to the 31st after a short month when derived from the anchor', () => {
+      const anchor = new Date('2027-01-31T04:30:00.000Z');
+      const out = (repo as any).addMonthsClamped(anchor, 3); // April
+      expect(out.toISOString()).toBe('2027-04-30T04:30:00.000Z');
+      const may = (repo as any).addMonthsClamped(anchor, 4);
+      expect(may.toISOString()).toBe('2027-05-31T04:30:00.000Z');
+    });
+  });
+
+  describe('refundVerifiedDeposit', () => {
+    it('should refund a VERIFIED deposit with a valid FD_REFUND ledger entry', async () => {
+      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        userId: 'user-1',
+        status: 'VERIFIED',
+        depositAmount: { toNumber: () => 50000 },
+      });
+      prisma.user.update.mockResolvedValue({ balance: 50000 });
+      prisma.fixedDepositApplication.update.mockResolvedValue({});
+
+      const result = await repo.refundVerifiedDeposit(
+        'app-1',
+        'admin-1',
+        'Customer request',
+      );
+
+      expect(result.conflicted).toBe(false);
+      expect(result.newBalance).toEqual(50000);
+      expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          direction: 'CREDIT',
+          sourceType: 'FD_REFUND',
+          sourceId: 'app-1',
+        }),
+      });
+      expect(prisma.fixedDepositApplication.update).toHaveBeenCalledWith({
+        where: { id: 'app-1' },
+        data: expect.objectContaining({ status: 'REJECTED', reviewedBy: 'admin-1' }),
+      });
+    });
+
+    it('should return conflicted if application is not VERIFIED', async () => {
+      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        status: 'PENDING',
+      });
+
+      const result = await repo.refundVerifiedDeposit('app-1', 'admin-1', 'x');
+      expect(result.conflicted).toBe(true);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('creditPayout', () => {
+    it('should credit a pending payout and advance the application', async () => {
+      mockQueryRawResult = [
+        {
+          id: 'payout-1',
+          applicationId: 'app-1',
+          userId: 'user-1',
+          emiNumber: 1,
+          amount: 3130,
+          status: 'PENDING',
+        },
+      ];
+      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        status: 'VERIFIED',
+        emisPaid: 0,
+        totalEmis: 16,
+        payoutMode: 'quarterly',
+        verifiedAt: new Date('2026-06-20T04:30:00.000Z'),
+      });
+      prisma.user.update.mockResolvedValue({ balance: 3130 });
+      prisma.fixedDepositPayout.update.mockResolvedValue({});
+      prisma.fixedDepositApplication.update.mockResolvedValue({});
+
+      const result = await repo.creditPayout('app-1', 1);
+
+      expect(result).not.toBeNull();
+      expect(result!.isComplete).toBe(false);
+      expect(prisma.fixedDepositPayout.update).toHaveBeenCalledWith({
+        where: { id: 'payout-1' },
+        data: expect.objectContaining({ status: 'PAID' }),
+      });
+      // EMI 2 of a quarterly plan anchored on 20 Jun = 20 Dec, not 1 Jan.
+      const appUpdate = prisma.fixedDepositApplication.update.mock
+        .calls[0][0].data;
+      expect((appUpdate.nextPayoutAt as Date).toISOString()).toBe(
+        '2026-12-20T04:30:00.000Z',
+      );
+      expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          sourceType: 'FD_PAYOUT',
+          amount: 3130,
+          userId: 'user-1',
+        }),
+      });
+    });
+
+    it('keeps the 20th for a backfilled FD after paying EMI 5', async () => {
+      mockQueryRawResult = [
+        {
+          id: 'payout-5',
+          applicationId: 'app-1',
+          userId: 'user-1',
+          emiNumber: 5,
+          amount: 5000,
+          status: 'PENDING',
+        },
+      ];
+      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        status: 'VERIFIED',
+        emisPaid: 4,
+        totalEmis: 40,
+        payoutMode: 'monthly',
+        verifiedAt: new Date('2026-06-20T04:30:00.000Z'),
+        nextPayoutAt: new Date('2026-11-20T04:30:00.000Z'),
+      });
+      prisma.user.update.mockResolvedValue({ balance: 25000 });
+      prisma.fixedDepositPayout.update.mockResolvedValue({});
+      prisma.fixedDepositApplication.update.mockResolvedValue({});
+
+      const result = await repo.creditPayout('app-1', 5);
+
+      expect(result).not.toBeNull();
+      const appUpdate = prisma.fixedDepositApplication.update.mock
+        .calls[0][0].data;
+      expect(appUpdate.emisPaid).toBe(5);
+      expect((appUpdate.nextPayoutAt as Date).toISOString()).toBe(
+        '2026-12-20T04:30:00.000Z',
+      );
+    });
+
+    it('should return null when the payout is already paid', async () => {
+      mockQueryRawResult = [
+        { id: 'payout-1', status: 'PAID', userId: 'user-1', amount: 3130 },
+      ];
+
+      const result = await repo.creditPayout('app-1', 1);
+      expect(result).toBeNull();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should return null when the application is no longer VERIFIED', async () => {
+      mockQueryRawResult = [
+        {
+          id: 'payout-1',
+          userId: 'user-1',
+          amount: 3130,
+          status: 'PENDING',
+        },
+      ];
+      prisma.fixedDepositApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        status: 'REJECTED',
+      });
+
+      const result = await repo.creditPayout('app-1', 1);
+      expect(result).toBeNull();
     });
   });
 });

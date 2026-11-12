@@ -253,64 +253,6 @@ export class FinanceRepository {
         FinanceItem['user'] | null,
     };
   }
-
-  /**
-   * Aggregated counters for the dashboard, computed with GROUP BY on the
-   * database — no per-row data ever leaves the server.
-   */
-  async summary() {
-    const [depGroups, wdrGroups] = await Promise.all([
-      this.prisma.depositRequest.groupBy({
-        by: ['status'],
-        _count: true,
-        _sum: { amount: true },
-      }),
-      this.prisma.withdrawalRequest.groupBy({
-        by: ['status'],
-        _count: true,
-        _sum: { amount: true },
-      }),
-    ]);
-
-    const countFor = (
-      groups: { status: DepositStatus; _count: number }[],
-      status: DepositStatus,
-    ) => groups.find((g) => g.status === status)?._count ?? 0;
-
-    const dep = {
-      total: depGroups.reduce((n, g) => n + g._count, 0),
-      pending: countFor(depGroups, DepositStatus.PENDING),
-      underReview: countFor(depGroups, DepositStatus.UNDER_REVIEW),
-      approved: countFor(depGroups, DepositStatus.VERIFIED),
-      rejected: countFor(depGroups, DepositStatus.REJECTED),
-      approvedAmount: (
-        depGroups.find((g) => g.status === DepositStatus.VERIFIED)?._sum
-          .amount ?? new Prisma.Decimal(0)
-      ).toString(),
-    };
-    const wdr = {
-      total: wdrGroups.reduce((n, g) => n + g._count, 0),
-      pending: countFor(wdrGroups, WithdrawalStatus.PENDING),
-      underReview: countFor(wdrGroups, WithdrawalStatus.UNDER_REVIEW),
-      approved: countFor(wdrGroups, WithdrawalStatus.VERIFIED),
-      rejected: countFor(wdrGroups, WithdrawalStatus.REJECTED),
-      approvedAmount: (
-        wdrGroups.find((g) => g.status === WithdrawalStatus.VERIFIED)?._sum
-          .amount ?? new Prisma.Decimal(0)
-      ).toString(),
-    };
-
-    return {
-      deposits: dep,
-      withdrawals: wdr,
-      totals: {
-        totalTransactions: dep.total + wdr.total,
-        totalPending: dep.pending + wdr.pending,
-        totalApproved: dep.approved + wdr.approved,
-        totalRejected: dep.rejected + wdr.rejected,
-      },
-    };
-  }
 }
 
 /** Merges two already-sorted arrays into one sorted array (stable). */

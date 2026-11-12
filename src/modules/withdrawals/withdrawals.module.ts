@@ -5,9 +5,10 @@ import { WithdrawalService } from './withdrawal.service';
 import { WithdrawalRepository } from './withdrawal.repository';
 import { OtpModule } from '../otp/otp.module';
 import { MailModule } from '../mail/mail.module';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
-  imports: [OtpModule, MailModule],
+  imports: [OtpModule, MailModule, KycModule],
   controllers: [WithdrawalController, WithdrawalAdminController],
   providers: [WithdrawalService, WithdrawalRepository],
   exports: [WithdrawalService],

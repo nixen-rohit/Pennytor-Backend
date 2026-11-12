@@ -31,13 +31,4 @@ export class FinanceController {
   listReports(@Query() query: ListFinanceQueryDto) {
     return this.financeService.listReports(query);
   }
-
-  @Get('summary')
-  @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Aggregated finance counters for the dashboard (GROUP BY on DB)',
-  })
-  getSummary() {
-    return this.financeService.summary();
-  }
 }

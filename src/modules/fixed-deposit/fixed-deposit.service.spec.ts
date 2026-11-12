@@ -273,7 +273,7 @@ describe('FixedDepositService', () => {
         otp,
       );
       expect(result).toEqual(mockApp);
-      expect(repo.create).toHaveBeenCalledWith(userId, planId);
+      expect(repo.create).toHaveBeenCalledWith(userId, planId, 'test@test.com');
       expect(mailService.sendFDAppliedEmail).toHaveBeenCalledWith(
         'test@test.com',
         expect.objectContaining({ firstName: 'Test', planId }),

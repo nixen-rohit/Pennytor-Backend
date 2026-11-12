@@ -1,4 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import {
+  DepositStatus,
+  FixedDepositStatus,
+  InvestmentStatus,
+  KycApplicationStatus,
+  SIPStatus,
+  WithdrawalStatus,
+} from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
 import { DepositService } from '../deposits/deposit.service';
 import { WithdrawalService } from '../withdrawals/withdrawal.service';
 import { InvestmentFundService } from '../investment-fund/investment-fund.service';
@@ -9,6 +18,7 @@ import { ReferralService } from '../referral/referral.service';
 @Injectable()
 export class DashboardService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly deposits: DepositService,
     private readonly withdrawals: WithdrawalService,
     private readonly investmentFund: InvestmentFundService,
@@ -16,6 +26,57 @@ export class DashboardService {
     private readonly fd: FixedDepositService,
     private readonly referral: ReferralService,
   ) {}
+
+  /**
+   * Admin dashboard: how many requests are waiting for review in each queue.
+   * KYC counts both SUBMITTED and UNDER_REVIEW (both are actionable by an
+   * admin); the other queues use their single PENDING status.
+   */
+  async getAdminPendingCounts() {
+    const [
+      kycPending,
+      depositsPending,
+      withdrawalsPending,
+      fixedDepositsPending,
+      sipPending,
+      investmentFundPending,
+    ] = await Promise.all([
+      this.prisma.kycApplication.count({
+        where: {
+          status: {
+            in: [
+              KycApplicationStatus.SUBMITTED,
+              KycApplicationStatus.UNDER_REVIEW,
+            ],
+          },
+        },
+      }),
+      this.prisma.depositRequest.count({
+        where: { status: DepositStatus.PENDING },
+      }),
+      this.prisma.withdrawalRequest.count({
+        where: { status: WithdrawalStatus.PENDING },
+      }),
+      this.prisma.fixedDepositApplication.count({
+        where: { status: FixedDepositStatus.PENDING },
+      }),
+      this.prisma.sIPForChildApplication.count({
+        where: { status: SIPStatus.PENDING },
+      }),
+      this.prisma.investmentApplication.count({
+        where: { status: InvestmentStatus.PENDING },
+      }),
+    ]);
+
+    return {
+      kycPending,
+      depositsPending,
+      withdrawalsPending,
+      fixedDepositsPending,
+      sipPending,
+      investmentFundPending,
+    };
+  }
 
   async getSummary(userId: string) {
     const [dep, wdr, fund, sipRes, fdRes, eligibility, stats, codeRes] =

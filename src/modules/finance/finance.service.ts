@@ -38,11 +38,6 @@ export class FinanceService {
     };
   }
 
-  /** Aggregated counters for the dashboard. */
-  async summary() {
-    return this.repository.summary();
-  }
-
   private toView(item: FinanceItem) {
     return {
       id: item.id,

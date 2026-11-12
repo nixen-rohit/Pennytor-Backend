@@ -7,13 +7,17 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Put,
   Query,
   Req,
   Res,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiCookieAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { KycFileAuditAction, Role } from '@prisma/client';
@@ -26,7 +30,11 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/guards/session-auth.guard';
 import { ListApplicationsQueryDto } from './dto/list-applications-query.dto';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
+import { ReplaceKycFileDto } from './dto/replace-kyc-file.dto';
+import { kycMulterOptions } from '../../middleware/upload';
+import { KYC_FILE_MAX_BYTES } from './kyc.types';
 import { contentDisposition } from '../../common/utils/storage.util';
+import { BadRequestException } from '@nestjs/common';
 
 /**
  * Admin-only KYC review surface. Every route here is gated by
@@ -159,6 +167,53 @@ export class KycAdminController {
     });
 
     return { message: 'File deleted' };
+  }
+
+  /**
+   * Admin document replacement (support flow). The old physical file is
+   * deleted only after the new one is stored and audited; the metadata row
+   * keeps its id and type, so the application detail view is unchanged.
+   */
+  @Put('applications/:applicationId/files/:fileId')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseInterceptors(FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary:
+      'Replace a private KYC document (admin, audited — requires a reason)',
+  })
+  async replaceFile(
+    @CurrentUser() admin: AuthUser,
+    @Param('applicationId') applicationId: string,
+    @Param('fileId') fileId: string,
+    @Body() dto: ReplaceKycFileDto,
+    @Req() req: Request,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const stored = await this.fileService.replaceFile({
+      applicationId,
+      fileId,
+      buffer: file.buffer,
+      originalName: file.originalname,
+      adminId: admin.id,
+      reason: dto.reason,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    return {
+      id: stored.id,
+      type: stored.type,
+      mimeType: stored.mimeType,
+      fileSize: stored.fileSize,
+      originalName: stored.originalName,
+      message: 'Document replaced',
+    };
   }
 
   /** Review decision: UNDER_REVIEW / VERIFIED / REJECTED (+ optional note). */
