@@ -74,7 +74,9 @@ describe('CommissionSchedulerService', () => {
     await service.runCycle({ month: 1, year: 2024 });
 
     // Cycle 2024-01 in IST === 2023-12-31T18:30Z .. 2024-01-31T18:30Z
-    const expectedStart = new Date(Date.UTC(2024, 0, 1, 0, 0, 0) - 330 * 60_000);
+    const expectedStart = new Date(
+      Date.UTC(2024, 0, 1, 0, 0, 0) - 330 * 60_000,
+    );
     const expectedEnd = new Date(Date.UTC(2024, 1, 1, 0, 0, 0) - 330 * 60_000);
 
     expect(prisma.investmentApplication.findMany).toHaveBeenCalledWith(

@@ -17,13 +17,13 @@ export class SIPForChildController {
 
   @Get('schemes')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    getSchemes() {
+  getSchemes() {
     return this.sipForChildService.getSchemes();
   }
 
   @Post('verify-password')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async verifyPassword(
+  async verifyPassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyPasswordDto,
   ) {
@@ -37,7 +37,7 @@ export class SIPForChildController {
 
   @Post('apply')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-    createApplication(
+  createApplication(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateSIPForChildApplicationDto,
   ) {
@@ -46,7 +46,7 @@ export class SIPForChildController {
 
   @Post(':id/pay-premium')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    payPremium(
+  payPremium(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: PayPremiumDto,
@@ -56,13 +56,13 @@ export class SIPForChildController {
 
   @Get('mine')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myApplications(@CurrentUser() user: AuthUser) {
+  myApplications(@CurrentUser() user: AuthUser) {
     return this.sipForChildService.myApplications(user.id);
   }
 
   @Get('reports')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myReports(@CurrentUser() user: AuthUser) {
+  myReports(@CurrentUser() user: AuthUser) {
     return this.sipForChildService.myReports(user.id);
   }
 }

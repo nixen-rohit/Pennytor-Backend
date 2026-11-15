@@ -2,11 +2,11 @@ import { IsNotEmpty, IsString } from 'class-validator';
 import { IsStrongPassword } from '../../../common/decorators/is-strong-password.decorator';
 
 export class ChangePasswordDto {
-    @IsString()
+  @IsString()
   @IsNotEmpty()
   currentPassword: string;
 
-    @IsString()
+  @IsString()
   @IsStrongPassword()
   newPassword: string;
 }

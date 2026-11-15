@@ -33,7 +33,8 @@ describe('AuthService', () => {
     email: 'test@example.com',
     firstName: 'Test',
     lastName: 'User',
-    passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$abcdefghijklmnopqrstuv$abcdefghijklmnopqrstuvwxyz123456',
+    passwordHash:
+      '$argon2id$v=19$m=65536,t=3,p=4$abcdefghijklmnopqrstuv$abcdefghijklmnopqrstuvwxyz123456',
     emailVerified: true,
     status: 'ACTIVE',
     role: 'USER',
@@ -148,10 +149,15 @@ describe('AuthService', () => {
 
       const result = await service.register(registerDto, mockCtx);
 
-      expect(result.message).toBe('Registration successful. Please verify your email.');
+      expect(result.message).toBe(
+        'Registration successful. Please verify your email.',
+      );
       expect(result.userId).toBe('new-user-id');
       expect(referralService.registerWithReferral).toHaveBeenCalled();
-      expect(otpService.generate).toHaveBeenCalledWith('new-user-id', 'EMAIL_VERIFY');
+      expect(otpService.generate).toHaveBeenCalledWith(
+        'new-user-id',
+        'EMAIL_VERIFY',
+      );
       expect(mailService.sendVerificationEmail).toHaveBeenCalled();
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'REGISTER' }),
@@ -186,7 +192,11 @@ describe('AuthService', () => {
       const result = await service.verifyEmail(verifyDto, mockCtx);
 
       expect(result.message).toBe('Email verified successfully.');
-      expect(otpService.verify).toHaveBeenCalledWith('user-123', 'EMAIL_VERIFY', '123456');
+      expect(otpService.verify).toHaveBeenCalledWith(
+        'user-123',
+        'EMAIL_VERIFY',
+        '123456',
+      );
       expect(usersService.markEmailVerified).toHaveBeenCalledWith('user-123');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'EMAIL_VERIFIED' }),
@@ -228,7 +238,9 @@ describe('AuthService', () => {
     it('revokes all sessions and logs audit', async () => {
       const result = await service.logoutAll('user-123', mockCtx);
 
-      expect(result.message).toBe('Logged out everywhere. All sessions were revoked.');
+      expect(result.message).toBe(
+        'Logged out everywhere. All sessions were revoked.',
+      );
       expect(sessionService.revokeAllForUser).toHaveBeenCalledWith('user-123');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'LOGOUT_ALL' }),

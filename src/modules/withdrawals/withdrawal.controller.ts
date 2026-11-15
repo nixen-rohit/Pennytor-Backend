@@ -22,7 +22,7 @@ export class WithdrawalController {
    */
   @Post('verify-password')
   @Throttle({ financial: { limit: 60, ttl: 60000 } })
-    verifyPassword(
+  verifyPassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyPasswordDto,
   ) {
@@ -34,19 +34,19 @@ export class WithdrawalController {
 
   @Get('mine')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-    myWithdrawals(@CurrentUser() user: AuthUser) {
+  myWithdrawals(@CurrentUser() user: AuthUser) {
     return this.withdrawalService.myWithdrawals(user.id);
   }
 
   @Get('latest')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-    getMyLatest(@CurrentUser() user: AuthUser) {
+  getMyLatest(@CurrentUser() user: AuthUser) {
     return this.withdrawalService.getMyLatest(user.id);
   }
 
   @Post()
   @Throttle({ financial: { limit: 60, ttl: 60000 } })
-    createWithdrawal(
+  createWithdrawal(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateWithdrawalDto,
   ) {

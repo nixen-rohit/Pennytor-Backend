@@ -29,7 +29,7 @@ export class SIPForChildAdminController {
 
   @Get('list')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    listApplications(@Query() query: ListSIPForChildQueryDto) {
+  listApplications(@Query() query: ListSIPForChildQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
     return this.sipForChildService.adminList({
@@ -42,21 +42,21 @@ export class SIPForChildAdminController {
 
   @Get('detail/:id')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-      detail(@Param('id') id: string) {
+  detail(@Param('id') id: string) {
     return this.sipForChildService.adminDetail(id);
   }
 
   @Patch('approve/:id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-      approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.sipForChildService.approve(id, admin.id);
   }
 
   @Patch('reject/:id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-      reject(
+  reject(
     @Param('id') id: string,
     @Body() updateDto: UpdateSIPForChildStatusDto,
     @CurrentUser() admin: AuthUser,

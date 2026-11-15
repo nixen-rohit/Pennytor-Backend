@@ -33,13 +33,13 @@ export class WithdrawalAdminController {
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
+  listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
     return this.withdrawalService.listWithdrawals(query);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    getWithdrawal(@Param('id') id: string) {
+  getWithdrawal(@Param('id') id: string) {
     return this.withdrawalService.getWithdrawalDetail(id);
   }
 
@@ -47,7 +47,7 @@ export class WithdrawalAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.withdrawalService.approve(id, admin.id);
   }
 
@@ -55,7 +55,7 @@ export class WithdrawalAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    reject(
+  reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectWithdrawalDto,

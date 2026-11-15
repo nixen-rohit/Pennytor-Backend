@@ -39,13 +39,13 @@ export class DepositAdminController {
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    listDeposits(@Query() query: ListDepositsQueryDto) {
+  listDeposits(@Query() query: ListDepositsQueryDto) {
     return this.depositService.listDeposits(query);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    getDeposit(@Param('id') id: string) {
+  getDeposit(@Param('id') id: string) {
     return this.depositService.getDepositDetail(id);
   }
 
@@ -83,7 +83,7 @@ export class DepositAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.depositService.approve(id, admin.id);
   }
 
@@ -91,7 +91,7 @@ export class DepositAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    reject(
+  reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectDepositDto,
@@ -103,7 +103,7 @@ export class DepositAdminController {
   @Delete(':id/file')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    async deleteFile(
+  async deleteFile(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Req() req: Request,
@@ -121,7 +121,7 @@ export class DepositAdminController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    async deleteDeposit(
+  async deleteDeposit(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Req() req: Request,

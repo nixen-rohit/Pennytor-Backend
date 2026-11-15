@@ -218,9 +218,7 @@ describe('CommissionService.reverse', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       user: {
-        update: jest
-          .fn()
-          .mockResolvedValue({ balance: new Prisma.Decimal(0) }),
+        update: jest.fn().mockResolvedValue({ balance: new Prisma.Decimal(0) }),
       },
       ledgerEntry: { create: jest.fn().mockResolvedValue({}) },
     };

@@ -101,19 +101,37 @@ export class DashboardService {
 
     const totalInvested =
       fundItems.reduce((s: number, i: any) => s + Number(i.amount || 0), 0) +
-      sipItems.reduce((s: number, i: any) => s + Number(i.totalInvested || 0), 0) +
-      fdItems.reduce((s: number, i: any) => s + Number(i.depositAmount || 0), 0);
+      sipItems.reduce(
+        (s: number, i: any) => s + Number(i.totalInvested || 0),
+        0,
+      ) +
+      fdItems.reduce(
+        (s: number, i: any) => s + Number(i.depositAmount || 0),
+        0,
+      );
 
     const activePlans = activeFund.length + activeSip.length + activeFd.length;
 
     const monthlyRoi =
-      activeFund.reduce((s: number, i: any) => s + Number(i.monthlyRoi || 0), 0) +
-      activeSip.reduce((s: number, i: any) => s + Number(i.monthlyRoi || 0), 0) +
+      activeFund.reduce(
+        (s: number, i: any) => s + Number(i.monthlyRoi || 0),
+        0,
+      ) +
+      activeSip.reduce(
+        (s: number, i: any) => s + Number(i.monthlyRoi || 0),
+        0,
+      ) +
       activeFd.reduce((s: number, i: any) => s + Number(i.emiAmount || 0), 0);
 
     const totalRoi =
-      fundItems.reduce((s: number, i: any) => s + Number(i.totalRoiPaid || 0), 0) +
-      sipItems.reduce((s: number, i: any) => s + Number(i.totalRoiPaid || 0), 0) +
+      fundItems.reduce(
+        (s: number, i: any) => s + Number(i.totalRoiPaid || 0),
+        0,
+      ) +
+      sipItems.reduce(
+        (s: number, i: any) => s + Number(i.totalRoiPaid || 0),
+        0,
+      ) +
       fdItems.reduce((s: number, i: any) => {
         const paid = (i.payouts ?? [])
           .filter((p: any) => p.status === 'PAID')
@@ -125,35 +143,60 @@ export class DashboardService {
       ...(dep.items ?? []).map((d: any) => ({
         id: `CR-${d.id}`,
         activity: 'Deposit',
-        status: d.status === 'VERIFIED' ? 'APPROVED' : d.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+        status:
+          d.status === 'VERIFIED'
+            ? 'APPROVED'
+            : d.status === 'REJECTED'
+              ? 'REJECTED'
+              : 'PENDING',
         amount: Number(d.amount) || 0,
         date: new Date(d.submittedAt ?? d.createdAt),
       })),
       ...(wdr.items ?? []).map((w: any) => ({
         id: `DR-${w.id}`,
         activity: 'Withdrawal',
-        status: w.status === 'VERIFIED' ? 'APPROVED' : w.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+        status:
+          w.status === 'VERIFIED'
+            ? 'APPROVED'
+            : w.status === 'REJECTED'
+              ? 'REJECTED'
+              : 'PENDING',
         amount: Number(w.amount) || 0,
         date: new Date(w.submittedAt ?? w.createdAt),
       })),
       ...fundItems.map((i: any) => ({
         id: `IF-${i.id}`,
         activity: i.planLabel,
-        status: i.status === 'VERIFIED' ? 'APPROVED' : i.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+        status:
+          i.status === 'VERIFIED'
+            ? 'APPROVED'
+            : i.status === 'REJECTED'
+              ? 'REJECTED'
+              : 'PENDING',
         amount: Number(i.amount) || 0,
         date: new Date(i.submittedAt ?? i.createdAt),
       })),
       ...sipItems.map((i: any) => ({
         id: `SIP-${i.id}`,
         activity: i.planLabel,
-        status: i.status === 'VERIFIED' ? 'APPROVED' : i.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+        status:
+          i.status === 'VERIFIED'
+            ? 'APPROVED'
+            : i.status === 'REJECTED'
+              ? 'REJECTED'
+              : 'PENDING',
         amount: Number(i.totalInvested) || 0,
         date: new Date(i.submittedAt ?? i.createdAt),
       })),
       ...fdItems.map((i: any) => ({
         id: `FD-${i.id}`,
         activity: i.planId || 'Fixed Deposit',
-        status: i.status === 'VERIFIED' ? 'APPROVED' : i.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
+        status:
+          i.status === 'VERIFIED'
+            ? 'APPROVED'
+            : i.status === 'REJECTED'
+              ? 'REJECTED'
+              : 'PENDING',
         amount: Number(i.depositAmount) || 0,
         date: new Date(i.submittedAt ?? i.createdAt),
       })),

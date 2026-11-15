@@ -148,9 +148,7 @@ export class KycService {
         nomineePhone: app.nomineePhone,
         nomineeAadhaar:
           this.decryptOrNull(app.nomineeAadhaarEncrypted, app.id) ??
-          (app.nomineeAadhaarLast4
-            ? mask(app.nomineeAadhaarLast4)
-            : null),
+          (app.nomineeAadhaarLast4 ? mask(app.nomineeAadhaarLast4) : null),
       },
       // Types only — never leak storage paths, original names or sizes.
       files: files.map((f) => ({ type: f.type })),
@@ -294,9 +292,7 @@ export class KycService {
         nomineePhone: app.nomineePhone,
         nomineeAadhaar:
           decryptOrNull(app.nomineeAadhaarEncrypted) ??
-          (app.nomineeAadhaarLast4
-            ? mask(app.nomineeAadhaarLast4)
-            : null),
+          (app.nomineeAadhaarLast4 ? mask(app.nomineeAadhaarLast4) : null),
       },
       files: app.files.map((f) => ({
         id: f.id,
@@ -403,12 +399,12 @@ export class KycService {
    */
   async getKycStatus(
     userId: string,
-  ): Promise<"VERIFIED" | "PENDING" | "REJECTED" | "NOT_STARTED"> {
+  ): Promise<'VERIFIED' | 'PENDING' | 'REJECTED' | 'NOT_STARTED'> {
     const app = await this.repository.findByUserId(userId);
-    if (!app) return "NOT_STARTED";
-    if (app.status === KycApplicationStatus.VERIFIED) return "VERIFIED";
-    if (app.status === KycApplicationStatus.REJECTED) return "REJECTED";
-    return "PENDING";
+    if (!app) return 'NOT_STARTED';
+    if (app.status === KycApplicationStatus.VERIFIED) return 'VERIFIED';
+    if (app.status === KycApplicationStatus.REJECTED) return 'REJECTED';
+    return 'PENDING';
   }
 
   /**
@@ -419,13 +415,13 @@ export class KycService {
    */
   async assertKycVerified(userId: string): Promise<void> {
     const status = await this.getKycStatus(userId);
-    if (status === "VERIFIED") return;
+    if (status === 'VERIFIED') return;
     const reason =
-      status === "NOT_STARTED"
-        ? "KYC verification is required before making any deposit or investment. Complete your KYC first."
-        : status === "REJECTED"
-          ? "Your KYC application was rejected. Please contact support to resubmit before making any investment."
-          : "Your KYC application is still under review. You will be able to invest once it is verified.";
+      status === 'NOT_STARTED'
+        ? 'KYC verification is required before making any deposit or investment. Complete your KYC first.'
+        : status === 'REJECTED'
+          ? 'Your KYC application was rejected. Please contact support to resubmit before making any investment.'
+          : 'Your KYC application is still under review. You will be able to invest once it is verified.';
     throw new ForbiddenException(reason);
   }
 

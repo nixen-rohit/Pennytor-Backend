@@ -471,7 +471,10 @@ describe('FixedDepositRepository', () => {
       });
       expect(prisma.fixedDepositApplication.update).toHaveBeenCalledWith({
         where: { id: 'app-1' },
-        data: expect.objectContaining({ status: 'REJECTED', reviewedBy: 'admin-1' }),
+        data: expect.objectContaining({
+          status: 'REJECTED',
+          reviewedBy: 'admin-1',
+        }),
       });
     });
 
@@ -520,8 +523,8 @@ describe('FixedDepositRepository', () => {
         data: expect.objectContaining({ status: 'PAID' }),
       });
       // EMI 2 of a quarterly plan anchored on 20 Jun = 20 Dec, not 1 Jan.
-      const appUpdate = prisma.fixedDepositApplication.update.mock
-        .calls[0][0].data;
+      const appUpdate =
+        prisma.fixedDepositApplication.update.mock.calls[0][0].data;
       expect((appUpdate.nextPayoutAt as Date).toISOString()).toBe(
         '2026-12-20T04:30:00.000Z',
       );
@@ -561,8 +564,8 @@ describe('FixedDepositRepository', () => {
       const result = await repo.creditPayout('app-1', 5);
 
       expect(result).not.toBeNull();
-      const appUpdate = prisma.fixedDepositApplication.update.mock
-        .calls[0][0].data;
+      const appUpdate =
+        prisma.fixedDepositApplication.update.mock.calls[0][0].data;
       expect(appUpdate.emisPaid).toBe(5);
       expect((appUpdate.nextPayoutAt as Date).toISOString()).toBe(
         '2026-12-20T04:30:00.000Z',

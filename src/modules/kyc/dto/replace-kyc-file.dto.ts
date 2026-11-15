@@ -6,7 +6,7 @@ import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
  * WHY verified evidence was swapped (support ticket, blurry upload, …).
  */
 export class ReplaceKycFileDto {
-    @IsString()
+  @IsString()
   @IsNotEmpty({ message: 'A reason is required to replace a document' })
   @MinLength(3, { message: 'Reason must be at least 3 characters' })
   @MaxLength(500)

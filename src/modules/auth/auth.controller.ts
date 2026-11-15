@@ -83,7 +83,7 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
-          register(@Body() dto: RegisterDto, @Req() req: Request) {
+  register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -101,7 +101,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @SkipCsrf()
-          async login(@Body() dto: LoginDto, @Req() req: Request) {
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
     const result = await this.authService.login(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -130,7 +130,7 @@ export class AuthController {
   @Get('me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SessionAuthGuard)
-          async me(@Req() req: Request) {
+  async me(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
 
     const result = await this.authService.me(user.id);
@@ -181,7 +181,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-    async logout(@Req() req: Request) {
+  async logout(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     const rawSessionId = (req.cookies as Record<string, string>)[
       SESSION_COOKIE
@@ -200,7 +200,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-    async logoutAll(@Req() req: Request) {
+  async logoutAll(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
 
     const result = await this.authService.logoutAll(user.id, {
@@ -238,7 +238,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-    changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
+  changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     return this.authService.changePassword(user.id, dto, {
       ipAddress: req.ip,

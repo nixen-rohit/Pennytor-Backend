@@ -16,13 +16,13 @@ export class FixedDepositController {
 
   @Get('schemes')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    getSchemes() {
+  getSchemes() {
     return this.fdService.getSchemes();
   }
 
   @Post('verify-password')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    verifyPassword(
+  verifyPassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyFDPasswordDto,
   ) {
@@ -35,7 +35,7 @@ export class FixedDepositController {
 
   @Post('apply')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-    createApplication(
+  createApplication(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateFDApplicationDto,
   ) {
@@ -49,13 +49,13 @@ export class FixedDepositController {
 
   @Get('mine')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myApplications(@CurrentUser() user: AuthUser) {
+  myApplications(@CurrentUser() user: AuthUser) {
     return this.fdService.myApplications(user.id);
   }
 
   @Get('reports')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myReports(@CurrentUser() user: AuthUser) {
+  myReports(@CurrentUser() user: AuthUser) {
     return this.fdService.myReports(user.id);
   }
 }

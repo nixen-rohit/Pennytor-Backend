@@ -34,7 +34,7 @@ export class InvestmentFundAdminController {
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    list(@Query() query: ListInvestmentFundQueryDto) {
+  list(@Query() query: ListInvestmentFundQueryDto) {
     return this.investmentFundService.adminList(query);
   }
 
@@ -42,13 +42,13 @@ export class InvestmentFundAdminController {
   @Post('run-roi')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async runRoi() {
+  async runRoi() {
     return this.investmentFundService.processRoiPayouts();
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    detail(@Param('id') id: string) {
+  detail(@Param('id') id: string) {
     return this.investmentFundService.adminDetail(id);
   }
 
@@ -56,7 +56,7 @@ export class InvestmentFundAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.investmentFundService.approve(id, admin.id);
   }
 
@@ -64,7 +64,7 @@ export class InvestmentFundAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    reject(
+  reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectInvestmentFundDto,

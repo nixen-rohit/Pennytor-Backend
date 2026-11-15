@@ -13,11 +13,7 @@ import { KycModule } from '../kyc/kyc.module';
 @Module({
   imports: [OtpModule, MailModule, PrismaModule, ReferralModule, KycModule],
   controllers: [FixedDepositController, FixedDepositAdminController],
-  providers: [
-    FixedDepositService,
-    FixedDepositRepository,
-    FDPayoutScheduler,
-  ],
+  providers: [FixedDepositService, FixedDepositRepository, FDPayoutScheduler],
   exports: [FixedDepositService],
 })
 export class FixedDepositModule {}

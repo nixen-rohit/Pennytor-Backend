@@ -12,38 +12,38 @@ import { Transform } from 'class-transformer';
 import { IsStrongPassword } from '../../../common/decorators/is-strong-password.decorator';
 
 export class RegisterDto {
-    @IsString()
+  @IsString()
   @Length(1, 50)
   firstName: string;
 
-    @IsString()
+  @IsString()
   @Length(1, 50)
   lastName: string;
 
-    @IsEmail()
+  @IsEmail()
   @MaxLength(255)
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   email: string;
 
-    @IsString()
+  @IsString()
   @IsStrongPassword()
   password: string;
 
-    @IsString()
+  @IsString()
   @Matches(/^[A-Z0-9]{8}$/, {
     message: 'Referral code must be 8 uppercase alphanumeric characters',
   })
   referralCode: string;
 
-    @IsBoolean()
+  @IsBoolean()
   @IsIn([true], {
     message: 'You must accept the terms and conditions to register',
   })
   acceptTerms: boolean;
 
-    @IsOptional()
+  @IsOptional()
   @IsBoolean()
   marketingEmails?: boolean = false;
 }

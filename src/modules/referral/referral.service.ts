@@ -91,7 +91,13 @@ export class ReferralService {
     marketingEmails: boolean;
     referralCode: string;
   }): Promise<{
-    user: { id: string; firstName: string; lastName: string; email: string; clientId: string | null };
+    user: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      clientId: string | null;
+    };
   }> {
     const { referralCode } = params;
     if (!referralCode) {
@@ -199,7 +205,15 @@ export class ReferralService {
         tx,
       );
 
-      return { user: { id: created.id, firstName: created.firstName, lastName: created.lastName, email: created.email, clientId: created.clientId } };
+      return {
+        user: {
+          id: created.id,
+          firstName: created.firstName,
+          lastName: created.lastName,
+          email: created.email,
+          clientId: created.clientId,
+        },
+      };
     });
   }
 
@@ -332,7 +346,7 @@ export class ReferralService {
     reason: string | null;
     referralCode: string | null;
     referralCodeStatus: ReferralCodeStatus | null;
-    kycStatus: "VERIFIED" | "PENDING" | "REJECTED" | "NOT_STARTED";
+    kycStatus: 'VERIFIED' | 'PENDING' | 'REJECTED' | 'NOT_STARTED';
   }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -351,7 +365,7 @@ export class ReferralService {
         kycStatus,
       };
     }
-    if (kycStatus !== "VERIFIED") {
+    if (kycStatus !== 'VERIFIED') {
       const reasonMap = {
         NOT_STARTED:
           'Complete KYC verification before you can participate in the referral program.',
@@ -513,7 +527,10 @@ export class ReferralService {
     });
 
     const byReferred = new Map(
-      sums.map((s) => [s.referredUserId, (s._sum.commissionAmount ?? new Prisma.Decimal(0)).toString()]),
+      sums.map((s) => [
+        s.referredUserId,
+        (s._sum.commissionAmount ?? new Prisma.Decimal(0)).toString(),
+      ]),
     );
 
     const attach = (nodes: any[]) => {
@@ -666,7 +683,9 @@ export class ReferralService {
    * Generates a unique clientId using the shared utility and checks
    * against the database within the given transaction to avoid collisions.
    */
-  private async generateUniqueClientId(tx: Prisma.TransactionClient): Promise<string> {
+  private async generateUniqueClientId(
+    tx: Prisma.TransactionClient,
+  ): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const clientId = generateClientId();
       const existing = await tx.user.findUnique({

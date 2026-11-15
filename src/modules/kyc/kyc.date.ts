@@ -6,7 +6,8 @@
  */
 export function toUtcDateOnly(value: string | Date): Date {
   if (value == null) return value as unknown as Date;
-  const raw = value instanceof Date ? value.toISOString() : String(value).trim();
+  const raw =
+    value instanceof Date ? value.toISOString() : String(value).trim();
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (dateOnly) {
     return new Date(

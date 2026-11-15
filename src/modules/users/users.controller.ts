@@ -22,7 +22,7 @@ export class UsersController {
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Roles(Role.ADMIN)
-        async approveUser(@Param('id') id: string) {
+  async approveUser(@Param('id') id: string) {
     return this.usersService.approveUser(id);
   }
 }

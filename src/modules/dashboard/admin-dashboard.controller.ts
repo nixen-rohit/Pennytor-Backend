@@ -18,7 +18,7 @@ export class AdminDashboardController {
 
   @Get('pending-counts')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    pendingCounts() {
+  pendingCounts() {
     return this.dashboard.getAdminPendingCounts();
   }
 }

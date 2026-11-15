@@ -32,19 +32,19 @@ export class DepositController {
 
   @Get('mine')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-    myDeposits(@CurrentUser() user: AuthUser) {
+  myDeposits(@CurrentUser() user: AuthUser) {
     return this.depositService.myDeposits(user.id);
   }
 
   @Get('latest')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-    getMyLatest(@CurrentUser() user: AuthUser) {
+  getMyLatest(@CurrentUser() user: AuthUser) {
     return this.depositService.getMyLatest(user.id);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-    async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.depositService.getDeposit(user.id, id);
   }
 
@@ -53,7 +53,7 @@ export class DepositController {
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(DEPOSIT_FILE_MAX_BYTES)),
   )
-    async createDeposit(
+  async createDeposit(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateDepositDto,
     @UploadedFile() file?: Express.Multer.File,

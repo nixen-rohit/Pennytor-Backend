@@ -52,14 +52,14 @@ export class KycAdminController {
 
   @Get('applications')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    listApplications(@Query() query: ListApplicationsQueryDto) {
+  listApplications(@Query() query: ListApplicationsQueryDto) {
     return this.kycService.listApplications(query);
   }
 
   /** Full detail. Sensitive fields are decrypted only here, for ADMINs. */
   @Get('applications/:applicationId')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    getApplication(@Param('applicationId') applicationId: string) {
+  getApplication(@Param('applicationId') applicationId: string) {
     return this.kycService.getApplicationDetail(applicationId);
   }
 
@@ -69,7 +69,7 @@ export class KycAdminController {
    */
   @Get('applications/:applicationId/files/:fileId')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    async viewFile(
+  async viewFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -105,7 +105,7 @@ export class KycAdminController {
   /** Forced-download variant with its own DOWNLOAD audit entry. */
   @Get('applications/:applicationId/files/:fileId/download')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    async downloadFile(
+  async downloadFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -142,7 +142,7 @@ export class KycAdminController {
   @Delete('applications/:applicationId/files/:fileId')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    async deleteFile(
+  async deleteFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -167,8 +167,10 @@ export class KycAdminController {
   @Put('applications/:applicationId/files/:fileId')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @UseInterceptors(FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)))
-      async replaceFile(
+  @UseInterceptors(
+    FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)),
+  )
+  async replaceFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -205,7 +207,7 @@ export class KycAdminController {
   @Patch('applications/:applicationId/status')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-    updateStatus(
+  updateStatus(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: UpdateKycStatusDto,

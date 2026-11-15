@@ -16,13 +16,13 @@ export class InvestmentFundController {
 
   @Get('schemes')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    getSchemes() {
+  getSchemes() {
     return this.investmentFundService.getSchemes();
   }
 
   @Post('verify-password')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async verifyPassword(
+  async verifyPassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyPasswordDto,
   ) {
@@ -36,7 +36,7 @@ export class InvestmentFundController {
 
   @Post('apply')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-    createApplication(
+  createApplication(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateInvestmentApplicationDto,
   ) {
@@ -45,13 +45,13 @@ export class InvestmentFundController {
 
   @Get('mine')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myApplications(@CurrentUser() user: AuthUser) {
+  myApplications(@CurrentUser() user: AuthUser) {
     return this.investmentFundService.myApplications(user.id);
   }
 
   @Get('reports')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    myReports(@CurrentUser() user: AuthUser) {
+  myReports(@CurrentUser() user: AuthUser) {
     return this.investmentFundService.myReports(user.id);
   }
 }

@@ -242,7 +242,10 @@ export class KycRepository {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     await this.prisma.kycFileAuditLog.create({
-      data: { ...params, metadata: params.metadata as Prisma.InputJsonValue | undefined },
+      data: {
+        ...params,
+        metadata: params.metadata as Prisma.InputJsonValue | undefined,
+      },
     });
   }
 

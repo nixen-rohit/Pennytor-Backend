@@ -243,14 +243,14 @@ export class FixedDepositService {
 
   /**
    * Admin-initiated refund for VERIFIED Fixed Deposit applications.
-   * 
+   *
    * Process mirrors the repository's refundVerifiedDeposit:
    * 1. Validate application is in VERIFIED status
    * 2. Credit deposit amount back to user's wallet (balance increment)
    * 3. Create ledger entry for the refund (CREDIT transaction)
    * 4. Update FD status to REJECTED with review note
    * 5. Deactivate referral code if user had one (spec §11)
-   * 
+   *
    * @param id - Fixed Deposit Application ID
    * @param adminId - Admin user ID performing the refund
    * @param reason - Reason for refund (shown to user in notification)

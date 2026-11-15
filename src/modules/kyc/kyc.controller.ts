@@ -39,7 +39,7 @@ export class KycController {
   /** Upserts the caller's application as a DRAFT. */
   @Post('applications')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-    createApplication(
+  createApplication(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateKycApplicationDto,
   ) {
@@ -48,7 +48,7 @@ export class KycController {
 
   /** Caller's own application summary (id, status, file metadata). */
   @Get('applications/me')
-    getMyApplication(@CurrentUser() user: AuthUser) {
+  getMyApplication(@CurrentUser() user: AuthUser) {
     return this.kycService.getMyApplication(user.id);
   }
 
@@ -62,7 +62,7 @@ export class KycController {
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)),
   )
-    async uploadFile(
+  async uploadFile(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: UploadFileDto,
@@ -94,7 +94,7 @@ export class KycController {
   /** Sends the submission OTP to the caller's registered email. */
   @Post('applications/:applicationId/otp')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-    async sendOtp(
+  async sendOtp(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
   ) {
@@ -106,7 +106,7 @@ export class KycController {
   /** Verifies the OTP and submits the application. */
   @Post('applications/:applicationId/submit')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-    async submitApplication(
+  async submitApplication(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: SubmitKycApplicationDto,

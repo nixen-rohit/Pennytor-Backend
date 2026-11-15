@@ -29,7 +29,7 @@ export class FixedDepositAdminController {
 
   @Get('list')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-    listApplications(@Query() query: ListFDQueryDto) {
+  listApplications(@Query() query: ListFDQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
     return this.fdService.listApplications({
@@ -42,21 +42,21 @@ export class FixedDepositAdminController {
 
   @Get('detail/:id')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-      detail(@Param('id') id: string) {
+  detail(@Param('id') id: string) {
     return this.fdService.getApplicationDetail(id);
   }
 
   @Patch('approve/:id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-      approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.fdService.approveApplication(id, admin.id);
   }
 
   @Patch('reject/:id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-      reject(
+  reject(
     @Param('id') id: string,
     @Body() dto: RejectFDApplicationDto,
     @CurrentUser() admin: AuthUser,

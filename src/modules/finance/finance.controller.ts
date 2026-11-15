@@ -21,7 +21,7 @@ export class FinanceController {
 
   @Get('reports')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-    listReports(@Query() query: ListFinanceQueryDto) {
+  listReports(@Query() query: ListFinanceQueryDto) {
     return this.financeService.listReports(query);
   }
 }

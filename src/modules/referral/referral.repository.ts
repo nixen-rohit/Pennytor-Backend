@@ -191,7 +191,7 @@ export class ReferralRepository {
           createdAt: r.createdAt,
           depth,
           children: [],
-        totalCommission: '0',
+          totalCommission: '0',
         };
         byId.set(r.id, node);
         const parentId = r.referredById!;

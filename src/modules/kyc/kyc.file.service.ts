@@ -231,7 +231,8 @@ export class KycFileService {
   }
 
   /** Resolves metadata + a verified absolute path for admin streaming. */
-  async resolveForAccess(    applicationId: string,
+  async resolveForAccess(
+    applicationId: string,
     fileId: string,
   ): Promise<{ file: KycFile; absolutePath: string }> {
     const file = await this.repository.findFileForApplication(
