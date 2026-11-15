@@ -9,7 +9,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { WithdrawalService } from './withdrawal.service';
@@ -26,27 +25,21 @@ import { RejectWithdrawalDto } from './dto/reject-withdrawal.dto';
  * SessionAuthGuard + RolesGuard(@Roles(ADMIN)); the frontend's role check is
  * presentation-only. Approval debits the user's wallet exactly once.
  */
-@ApiTags('admin-withdrawals')
 @Controller('admin/withdrawals')
 @UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@ApiCookieAuth()
 export class WithdrawalAdminController {
   constructor(private readonly withdrawalService: WithdrawalService) {}
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'List withdrawal requests (filter by status/search)',
-  })
-  listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
+    listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
     return this.withdrawalService.listWithdrawals(query);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Withdrawal request detail' })
-  getWithdrawal(@Param('id') id: string) {
+    getWithdrawal(@Param('id') id: string) {
     return this.withdrawalService.getWithdrawalDetail(id);
   }
 
@@ -54,10 +47,7 @@ export class WithdrawalAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Approve a withdrawal (debits wallet + ledger, audited)',
-  })
-  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.withdrawalService.approve(id, admin.id);
   }
 
@@ -65,8 +55,7 @@ export class WithdrawalAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Reject a withdrawal with a reason (audited)' })
-  reject(
+    reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectWithdrawalDto,

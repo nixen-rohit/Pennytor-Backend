@@ -9,7 +9,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { InvestmentFundService } from './investment-fund.service';
@@ -27,20 +26,15 @@ import { RejectInvestmentFundDto } from './dto/reject-investment-fund.dto';
  * (verifiedAt) — the wallet was already debited at submission. Rejection
  * refunds the submitted amount atomically.
  */
-@ApiTags('admin-investment-fund')
 @Controller('admin/investment-fund')
 @UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@ApiCookieAuth()
 export class InvestmentFundAdminController {
   constructor(private readonly investmentFundService: InvestmentFundService) {}
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'List investment fund applications (filter by status/search)',
-  })
-  list(@Query() query: ListInvestmentFundQueryDto) {
+    list(@Query() query: ListInvestmentFundQueryDto) {
     return this.investmentFundService.adminList(query);
   }
 
@@ -48,15 +42,13 @@ export class InvestmentFundAdminController {
   @Post('run-roi')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Trigger the auto-ROI credit job immediately' })
-  async runRoi() {
+    async runRoi() {
     return this.investmentFundService.processRoiPayouts();
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Investment fund application detail + cycle state' })
-  detail(@Param('id') id: string) {
+    detail(@Param('id') id: string) {
     return this.investmentFundService.adminDetail(id);
   }
 
@@ -64,8 +56,7 @@ export class InvestmentFundAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Approve an application and start its ROI cycle' })
-  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.investmentFundService.approve(id, admin.id);
   }
 
@@ -73,10 +64,7 @@ export class InvestmentFundAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Reject an application with a reason (refunds wallet)',
-  })
-  reject(
+    reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectInvestmentFundDto,

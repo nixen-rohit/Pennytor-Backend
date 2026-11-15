@@ -9,7 +9,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { KycService } from './kyc.service';
@@ -29,10 +28,8 @@ import { KYC_FILE_MAX_BYTES } from './kyc.types';
  * the ownership check server-side; a foreign id is indistinguishable from
  * "not found").
  */
-@ApiTags('kyc')
 @Controller('kyc')
 @UseGuards(SessionAuthGuard)
-@ApiCookieAuth()
 export class KycController {
   constructor(
     private readonly kycService: KycService,
@@ -42,10 +39,7 @@ export class KycController {
   /** Upserts the caller's application as a DRAFT. */
   @Post('applications')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  @ApiOperation({
-    summary: 'Create or update the caller KYC application (DRAFT)',
-  })
-  createApplication(
+    createApplication(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateKycApplicationDto,
   ) {
@@ -54,8 +48,7 @@ export class KycController {
 
   /** Caller's own application summary (id, status, file metadata). */
   @Get('applications/me')
-  @ApiOperation({ summary: 'Get the caller KYC application status and files' })
-  getMyApplication(@CurrentUser() user: AuthUser) {
+    getMyApplication(@CurrentUser() user: AuthUser) {
     return this.kycService.getMyApplication(user.id);
   }
 
@@ -69,10 +62,7 @@ export class KycController {
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)),
   )
-  @ApiOperation({
-    summary: 'Upload one KYC document for the caller application',
-  })
-  async uploadFile(
+    async uploadFile(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: UploadFileDto,
@@ -104,8 +94,7 @@ export class KycController {
   /** Sends the submission OTP to the caller's registered email. */
   @Post('applications/:applicationId/otp')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Send the KYC submission OTP email' })
-  async sendOtp(
+    async sendOtp(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
   ) {
@@ -117,8 +106,7 @@ export class KycController {
   /** Verifies the OTP and submits the application. */
   @Post('applications/:applicationId/submit')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Verify OTP and submit the KYC application' })
-  async submitApplication(
+    async submitApplication(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: SubmitKycApplicationDto,

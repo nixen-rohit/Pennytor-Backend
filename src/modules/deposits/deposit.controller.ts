@@ -10,7 +10,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from './dto/create-deposit.dto';
@@ -26,31 +25,26 @@ const DEPOSIT_FILE_MAX_BYTES = 2 * 1024 * 1024;
  * derived from the session — a user can never create a request for someone
  * else.
  */
-@ApiTags('deposits')
 @Controller('deposits')
 @UseGuards(SessionAuthGuard)
-@ApiCookieAuth()
 export class DepositController {
   constructor(private readonly depositService: DepositService) {}
 
   @Get('mine')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({ summary: 'List the caller deposit requests' })
-  myDeposits(@CurrentUser() user: AuthUser) {
+    myDeposits(@CurrentUser() user: AuthUser) {
     return this.depositService.myDeposits(user.id);
   }
 
   @Get('latest')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({ summary: 'Get the latest deposit status for the caller' })
-  getMyLatest(@CurrentUser() user: AuthUser) {
+    getMyLatest(@CurrentUser() user: AuthUser) {
     return this.depositService.getMyLatest(user.id);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({ summary: 'Get a single deposit request by ID' })
-  async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    async getDeposit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.depositService.getDeposit(user.id, id);
   }
 
@@ -59,10 +53,7 @@ export class DepositController {
   @UseInterceptors(
     FileInterceptor('file', kycMulterOptions(DEPOSIT_FILE_MAX_BYTES)),
   )
-  @ApiOperation({
-    summary: 'Submit a deposit request with payment screenshot',
-  })
-  async createDeposit(
+    async createDeposit(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateDepositDto,
     @UploadedFile() file?: Express.Multer.File,

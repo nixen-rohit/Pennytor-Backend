@@ -12,13 +12,6 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { CookieOptions, Request } from 'express';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBody,
-  ApiCookieAuth,
-} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SessionAuthGuard, SESSION_COOKIE } from './guards/session-auth.guard';
 import { SessionService } from '../session/session.service';
@@ -34,7 +27,6 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 
 const CSRF_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   private readonly isProd: boolean;
@@ -91,11 +83,7 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @SkipCsrf()
-  @ApiOperation({ summary: 'Create a new account' })
-  @ApiBody({ type: RegisterDto })
-  @ApiResponse({ status: 201, description: 'Account created successfully' })
-  @ApiResponse({ status: 409, description: 'Email already registered' })
-  register(@Body() dto: RegisterDto, @Req() req: Request) {
+          register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -113,14 +101,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @SkipCsrf()
-  @ApiOperation({ summary: 'Log into an existing account' })
-  @ApiBody({ type: LoginDto })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid credentials / Unverified email / Locked',
-  })
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
+          async login(@Body() dto: LoginDto, @Req() req: Request) {
     const result = await this.authService.login(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -149,16 +130,7 @@ export class AuthController {
   @Get('me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SessionAuthGuard)
-  @ApiCookieAuth()
-  @ApiOperation({
-    summary: 'Get the authenticated user for the current session',
-    description:
-      'Called on every page load. The session is restored entirely from ' +
-      'the HttpOnly cookie — no token is ever stored client-side.',
-  })
-  @ApiResponse({ status: 200, description: 'Current user' })
-  @ApiResponse({ status: 401, description: 'Not signed in / invalid session' })
-  async me(@Req() req: Request) {
+          async me(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
 
     const result = await this.authService.me(user.id);
@@ -209,8 +181,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiCookieAuth()
-  async logout(@Req() req: Request) {
+    async logout(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     const rawSessionId = (req.cookies as Record<string, string>)[
       SESSION_COOKIE
@@ -229,8 +200,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiCookieAuth()
-  async logoutAll(@Req() req: Request) {
+    async logoutAll(@Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
 
     const result = await this.authService.logoutAll(user.id, {
@@ -268,8 +238,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(SessionAuthGuard)
-  @ApiCookieAuth()
-  changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
+    changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
     const user = (req as Request & { user: { id: string } }).user;
     return this.authService.changePassword(user.id, dto, {
       ipAddress: req.ip,

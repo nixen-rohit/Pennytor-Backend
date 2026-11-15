@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { WithdrawalService } from './withdrawal.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
@@ -12,10 +11,8 @@ import { VerifyPasswordDto } from './dto/verify-password.dto';
  * User-side withdrawal requests. CSRF is enforced globally; ownership is
  * derived from the session. The wallet is only debited on admin approval.
  */
-@ApiTags('withdrawals')
 @Controller('withdrawals')
 @UseGuards(SessionAuthGuard)
-@ApiCookieAuth()
 export class WithdrawalController {
   constructor(private readonly withdrawalService: WithdrawalService) {}
 
@@ -25,8 +22,7 @@ export class WithdrawalController {
    */
   @Post('verify-password')
   @Throttle({ financial: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Verify password and send OTP' })
-  verifyPassword(
+    verifyPassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: VerifyPasswordDto,
   ) {
@@ -38,24 +34,19 @@ export class WithdrawalController {
 
   @Get('mine')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({
-    summary: 'Current wallet balance and the caller withdrawal requests',
-  })
-  myWithdrawals(@CurrentUser() user: AuthUser) {
+    myWithdrawals(@CurrentUser() user: AuthUser) {
     return this.withdrawalService.myWithdrawals(user.id);
   }
 
   @Get('latest')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({ summary: 'Get the latest withdrawal status for the caller' })
-  getMyLatest(@CurrentUser() user: AuthUser) {
+    getMyLatest(@CurrentUser() user: AuthUser) {
     return this.withdrawalService.getMyLatest(user.id);
   }
 
   @Post()
   @Throttle({ financial: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Submit a withdrawal request' })
-  createWithdrawal(
+    createWithdrawal(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateWithdrawalDto,
   ) {

@@ -12,7 +12,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Request, Response } from 'express';
@@ -32,25 +31,21 @@ import { contentDisposition } from '../../common/utils/storage.util';
  * is presentation-only. Screenshots are streamed through these endpoints —
  * there is no public URL for any deposit screenshot.
  */
-@ApiTags('admin-deposits')
 @Controller('admin/deposits')
 @UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@ApiCookieAuth()
 export class DepositAdminController {
   constructor(private readonly depositService: DepositService) {}
 
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({ summary: 'List deposit requests (filter by status/search)' })
-  listDeposits(@Query() query: ListDepositsQueryDto) {
+    listDeposits(@Query() query: ListDepositsQueryDto) {
     return this.depositService.listDeposits(query);
   }
 
   @Get(':id')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Deposit request detail' })
-  getDeposit(@Param('id') id: string) {
+    getDeposit(@Param('id') id: string) {
     return this.depositService.getDepositDetail(id);
   }
 
@@ -88,10 +83,7 @@ export class DepositAdminController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Approve a deposit (credits wallet + ledger, audited)',
-  })
-  approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
+    approve(@Param('id') id: string, @CurrentUser() admin: AuthUser) {
     return this.depositService.approve(id, admin.id);
   }
 
@@ -99,8 +91,7 @@ export class DepositAdminController {
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Reject a deposit with a reason (audited)' })
-  reject(
+    reject(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Body() dto: RejectDepositDto,
@@ -112,8 +103,7 @@ export class DepositAdminController {
   @Delete(':id/file')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Delete deposit screenshot (admin, audited)' })
-  async deleteFile(
+    async deleteFile(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Req() req: Request,
@@ -131,8 +121,7 @@ export class DepositAdminController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Delete deposit record (admin, audited)' })
-  async deleteDeposit(
+    async deleteDeposit(
     @Param('id') id: string,
     @CurrentUser() admin: AuthUser,
     @Req() req: Request,

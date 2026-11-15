@@ -17,7 +17,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiCookieAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { KycFileAuditAction, Role } from '@prisma/client';
@@ -42,11 +41,9 @@ import { BadRequestException } from '@nestjs/common';
  * is presentation-only. All private files are streamed through these
  * endpoints — there is no public URL for any KYC document.
  */
-@ApiTags('admin-kyc')
 @Controller('admin/kyc')
 @UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@ApiCookieAuth()
 export class KycAdminController {
   constructor(
     private readonly kycService: KycService,
@@ -55,18 +52,14 @@ export class KycAdminController {
 
   @Get('applications')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({ summary: 'List KYC applications (filter by status)' })
-  listApplications(@Query() query: ListApplicationsQueryDto) {
+    listApplications(@Query() query: ListApplicationsQueryDto) {
     return this.kycService.listApplications(query);
   }
 
   /** Full detail. Sensitive fields are decrypted only here, for ADMINs. */
   @Get('applications/:applicationId')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'KYC application detail (sensitive fields decrypted)',
-  })
-  getApplication(@Param('applicationId') applicationId: string) {
+    getApplication(@Param('applicationId') applicationId: string) {
     return this.kycService.getApplicationDetail(applicationId);
   }
 
@@ -76,8 +69,7 @@ export class KycAdminController {
    */
   @Get('applications/:applicationId/files/:fileId')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Stream a private KYC document (admin, audited)' })
-  async viewFile(
+    async viewFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -113,8 +105,7 @@ export class KycAdminController {
   /** Forced-download variant with its own DOWNLOAD audit entry. */
   @Get('applications/:applicationId/files/:fileId/download')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Download a private KYC document (admin, audited)' })
-  async downloadFile(
+    async downloadFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -151,8 +142,7 @@ export class KycAdminController {
   @Delete('applications/:applicationId/files/:fileId')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Delete a private KYC document (admin, audited)' })
-  async deleteFile(
+    async deleteFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -178,12 +168,7 @@ export class KycAdminController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', kycMulterOptions(KYC_FILE_MAX_BYTES)))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary:
-      'Replace a private KYC document (admin, audited — requires a reason)',
-  })
-  async replaceFile(
+      async replaceFile(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Param('fileId') fileId: string,
@@ -220,8 +205,7 @@ export class KycAdminController {
   @Patch('applications/:applicationId/status')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Update KYC application status (admin decision)' })
-  updateStatus(
+    updateStatus(
     @CurrentUser() admin: AuthUser,
     @Param('applicationId') applicationId: string,
     @Body() dto: UpdateKycStatusDto,

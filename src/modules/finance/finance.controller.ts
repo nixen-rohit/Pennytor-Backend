@@ -1,5 +1,4 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { FinanceService } from './finance.service';
@@ -14,21 +13,15 @@ import { Roles } from '../../common/decorators/roles.decorator';
  * module only merges both tables into the single report feed and computes
  * dashboard aggregates — all server-side.
  */
-@ApiTags('admin-finance')
 @Controller('admin/finance')
 @UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
-@ApiCookieAuth()
 export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
   @Get('reports')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @ApiOperation({
-    summary:
-      'Merged deposit + withdrawal report (date order, server-side filter/page/sort/search)',
-  })
-  listReports(@Query() query: ListFinanceQueryDto) {
+    listReports(@Query() query: ListFinanceQueryDto) {
     return this.financeService.listReports(query);
   }
 }

@@ -34,8 +34,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-.env.local
 .env
+.env.local
+# committed template with no secrets in it
+.env.production.example
 
 # private KYC document store (local dev only; prod lives at /var/private-storage)
 /private-storage
